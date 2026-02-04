@@ -1,0 +1,408 @@
+'use client';
+
+import { AutomationRule, AutomationCondition, AutomationAction } from '@/types/matrix';
+import { useState, useCallback, useMemo } from 'react';
+import { Plus, Trash2, Save, X, ChevronDown, Grip } from 'lucide-react';
+import { 
+  crearRegla, 
+  actualizarRegla,
+  obtenerOpcionesCondiciones,
+  obtenerOpcionesAcciones
+} from '@/lib/automation-rules.service';
+
+interface AutomationRuleBuilderProps {
+  reglaExistente?: AutomationRule | null;
+  onSave: (regla: AutomationRule) => void;
+  onCancel: () => void;
+  isLoading?: boolean;
+}
+
+export function AutomationRuleBuilder({
+  reglaExistente,
+  onSave,
+  onCancel,
+  isLoading = false
+}: AutomationRuleBuilderProps) {
+  const [nombre, setNombre] = useState(reglaExistente?.nombre || '');
+  const [descripcion, setDescripcion] = useState(reglaExistente?.descripcion || '');
+  const [activa, setActiva] = useState(reglaExistente?.activa ?? true);
+  const [condiciones, setCondiciones] = useState<AutomationCondition[]>(
+    reglaExistente?.condiciones || []
+  );
+  const [acciones, setAcciones] = useState<AutomationAction[]>(
+    reglaExistente?.acciones || []
+  );
+  const [expandedSections, setExpandedSections] = useState({
+    condiciones: true,
+    acciones: true
+  });
+
+  const opcionesCondiciones = useMemo(() => obtenerOpcionesCondiciones(), []);
+  const opcionesAcciones = useMemo(() => obtenerOpcionesAcciones(), []);
+
+  // Agregar condición
+  const agregarCondicion = useCallback(() => {
+    const nuevaCondicion: AutomationCondition = {
+      id: `cond-${Date.now()}`,
+      type: 'canal',
+      operator: '=',
+      value: 'whatsapp',
+      label: 'Nueva condición'
+    };
+    setCondiciones([...condiciones, nuevaCondicion]);
+  }, [condiciones]);
+
+  // Actualizar condición
+  const actualizarCondicion = useCallback((id: string, cambios: Partial<AutomationCondition>) => {
+    setCondiciones(condiciones.map(c => c.id === id ? { ...c, ...cambios } : c));
+  }, [condiciones]);
+
+  // Eliminar condición
+  const eliminarCondicion = useCallback((id: string) => {
+    setCondiciones(condiciones.filter(c => c.id !== id));
+  }, [condiciones]);
+
+  // Agregar acción
+  const agregarAccion = useCallback(() => {
+    const nuevaAccion: AutomationAction = {
+      id: `accion-${Date.now()}`,
+      type: 'add-etiqueta',
+      value: '',
+      description: 'Nueva acción'
+    };
+    setAcciones([...acciones, nuevaAccion]);
+  }, [acciones]);
+
+  // Actualizar acción
+  const actualizarAccion = useCallback((id: string, cambios: Partial<AutomationAction>) => {
+    setAcciones(acciones.map(a => a.id === id ? { ...a, ...cambios } : a));
+  }, [acciones]);
+
+  // Eliminar acción
+  const eliminarAccion = useCallback((id: string) => {
+    setAcciones(acciones.filter(a => a.id !== id));
+  }, [acciones]);
+
+  // Guardar regla
+  const handleSave = useCallback(async () => {
+    if (!nombre.trim()) {
+      alert('El nombre de la regla es obligatorio');
+      return;
+    }
+
+    if (condiciones.length === 0) {
+      alert('Debe agregar al menos una condición');
+      return;
+    }
+
+    if (acciones.length === 0) {
+      alert('Debe agregar al menos una acción');
+      return;
+    }
+
+    let regla: AutomationRule;
+
+    if (reglaExistente) {
+      regla = actualizarRegla(reglaExistente.id, {
+        nombre,
+        descripcion,
+        activa,
+        condiciones,
+        acciones
+      }) || reglaExistente;
+    } else {
+      regla = crearRegla({
+        nombre,
+        descripcion,
+        activa,
+        condiciones,
+        acciones
+      });
+    }
+
+    onSave(regla);
+  }, [nombre, descripcion, activa, condiciones, acciones, reglaExistente, onSave]);
+
+  const toggleSection = (section: 'condiciones' | 'acciones') => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg max-h-96 overflow-y-auto">
+      {/* Header */}
+      <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-t-lg flex items-center justify-between">
+        <h2 className="text-lg font-bold">
+          {reglaExistente ? '✏️ Editar Regla' : '➕ Nueva Regla'}
+        </h2>
+        <button onClick={onCancel} className="hover:bg-white/20 p-1 rounded">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="p-6 space-y-6">
+        {/* Información básica */}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Nombre de la Regla *
+            </label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="ej: Leads premium por valor"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Descripción
+            </label>
+            <textarea
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              placeholder="Describe qué hace esta regla..."
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={activa}
+              onChange={(e) => setActiva(e.target.checked)}
+              className="w-4 h-4 rounded cursor-pointer accent-blue-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Regla activa</span>
+          </label>
+        </div>
+
+        {/* Condiciones */}
+        <div className="border-t border-gray-200 pt-4">
+          <button
+            onClick={() => toggleSection('condiciones')}
+            className="w-full flex items-center justify-between hover:bg-gray-50 p-2 rounded-lg transition-colors"
+          >
+            <span className="font-semibold text-gray-900">
+              ✅ Condiciones (SI...)
+            </span>
+            <ChevronDown 
+              className={`w-5 h-5 transition-transform ${expandedSections.condiciones ? 'rotate-180' : ''}`} 
+            />
+          </button>
+
+          {expandedSections.condiciones && (
+            <div className="mt-3 space-y-3 pl-4 border-l-2 border-blue-300">
+              {condiciones.map((cond) => (
+                <CondicionBuilder
+                  key={cond.id}
+                  condicion={cond}
+                  opciones={opcionesCondiciones}
+                  onUpdate={(cambios) => actualizarCondicion(cond.id, cambios)}
+                  onDelete={() => eliminarCondicion(cond.id)}
+                />
+              ))}
+
+              <button
+                onClick={agregarCondicion}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Agregar Condición
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Acciones */}
+        <div className="border-t border-gray-200 pt-4">
+          <button
+            onClick={() => toggleSection('acciones')}
+            className="w-full flex items-center justify-between hover:bg-gray-50 p-2 rounded-lg transition-colors"
+          >
+            <span className="font-semibold text-gray-900">
+              🔧 Acciones (ENTONCES...)
+            </span>
+            <ChevronDown 
+              className={`w-5 h-5 transition-transform ${expandedSections.acciones ? 'rotate-180' : ''}`} 
+            />
+          </button>
+
+          {expandedSections.acciones && (
+            <div className="mt-3 space-y-3 pl-4 border-l-2 border-green-300">
+              {acciones.map((acc) => (
+                <AccionBuilder
+                  key={acc.id}
+                  accion={acc}
+                  opciones={opcionesAcciones}
+                  onUpdate={(cambios) => actualizarAccion(acc.id, cambios)}
+                  onDelete={() => eliminarAccion(acc.id)}
+                />
+              ))}
+
+              <button
+                onClick={agregarAccion}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Agregar Acción
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Botones de acción */}
+        <div className="flex gap-3 border-t border-gray-200 pt-4">
+          <button
+            onClick={handleSave}
+            disabled={isLoading}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className="w-4 h-4" />
+            Guardar Regla
+          </button>
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition-colors"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente para construir condiciones individuales
+interface CondicionBuilderProps {
+  condicion: AutomationCondition;
+  opciones: ReturnType<typeof obtenerOpcionesCondiciones>;
+  onUpdate: (cambios: Partial<AutomationCondition>) => void;
+  onDelete: () => void;
+}
+
+function CondicionBuilder({ condicion, opciones, onUpdate, onDelete }: CondicionBuilderProps) {
+  const operadoresDisponibles = opciones.operadores[condicion.type as keyof typeof opciones.operadores] || [];
+
+  return (
+    <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 space-y-2">
+      <div className="flex items-center gap-2">
+        <Grip className="w-4 h-4 text-gray-400" />
+        <span className="text-xs font-semibold text-blue-700">CONDICIÓN</span>
+        <button
+          onClick={onDelete}
+          className="ml-auto p-1 hover:bg-blue-100 rounded text-red-600 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {/* Tipo */}
+        <select
+          value={condicion.type}
+          onChange={(e) => onUpdate({ type: e.target.value as AutomationCondition['type'] })}
+          className="px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {opciones.tipos.map(t => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+
+        {/* Operador */}
+        <select
+          value={condicion.operator}
+          onChange={(e) => onUpdate({ operator: e.target.value as AutomationCondition['operator'] })}
+          className="px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {operadoresDisponibles.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+
+        {/* Valor */}
+        {condicion.type === 'canal' ? (
+          <select
+            value={String(condicion.value)}
+            onChange={(e) => onUpdate({ value: e.target.value })}
+            className="px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {opciones.canales.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        ) : condicion.type === 'estado' ? (
+          <select
+            value={String(condicion.value)}
+            onChange={(e) => onUpdate({ value: e.target.value })}
+            className="px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {opciones.estados.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={condicion.type === 'time-in-status' || condicion.type === 'valor-leads' ? 'number' : 'text'}
+            value={String(condicion.value)}
+            onChange={(e) => onUpdate({ value: condicion.type === 'valor-leads' ? parseFloat(e.target.value) : e.target.value })}
+            placeholder="Valor..."
+            className="px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Componente para construir acciones individuales
+interface AccionBuilderProps {
+  accion: AutomationAction;
+  opciones: ReturnType<typeof obtenerOpcionesAcciones>;
+  onUpdate: (cambios: Partial<AutomationAction>) => void;
+  onDelete: () => void;
+}
+
+function AccionBuilder({ accion, opciones, onUpdate, onDelete }: AccionBuilderProps) {
+  return (
+    <div className="bg-green-50 p-3 rounded-lg border border-green-200 space-y-2">
+      <div className="flex items-center gap-2">
+        <Grip className="w-4 h-4 text-gray-400" />
+        <span className="text-xs font-semibold text-green-700">ACCIÓN</span>
+        <button
+          onClick={onDelete}
+          className="ml-auto p-1 hover:bg-green-100 rounded text-red-600 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {/* Tipo de acción */}
+        <select
+          value={accion.type}
+          onChange={(e) => onUpdate({ type: e.target.value as AutomationAction['type'] })}
+          className="px-2 py-1 border border-green-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          {opciones.tipos.map(t => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+
+        {/* Valor */}
+        <input
+          type="text"
+          value={accion.value}
+          onChange={(e) => onUpdate({ value: e.target.value })}
+          placeholder="Valor/Descripción..."
+          className="px-2 py-1 border border-green-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+      </div>
+    </div>
+  );
+}
