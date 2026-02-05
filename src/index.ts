@@ -193,11 +193,11 @@ const startServer = async () => {
     console.log('✅ Sistema de schedulers iniciado\n');
 
     // 6. Iniciar servidor HTTP
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log('╔═══════════════════════════════════════════════════════╗');
       console.log('║     🏥 SISTEMA CRM RCA INICIADO CORRECTAMENTE ✅      ║');
       console.log('╚═══════════════════════════════════════════════════════╝\n');
-      console.log(`🚀 Servidor API: http://localhost:${PORT}`);
+      console.log(`🚀 Servidor API: http://0.0.0.0:${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🕐 Zona horaria: ${process.env.DEFAULT_TIMEZONE || 'America/Mexico_City'}\n`);
       
