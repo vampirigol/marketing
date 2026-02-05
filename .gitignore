@@ -42,3 +42,8 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# Demo deployment files
+*.tar.gz
+backend-demo.tar.gz
+frontend-demo.tar.gz
