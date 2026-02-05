@@ -265,14 +265,14 @@ export function PacienteModal({ isOpen, onClose, paciente, onSave }: PacienteMod
               name="ciudad"
               value={formData.ciudad}
               onChange={handleChange}
-              placeholder="CDMX"
+              placeholder="Guadalajara"
             />
             <Input
               label="Estado"
               name="estado"
               value={formData.estado}
               onChange={handleChange}
-              placeholder="Ciudad de México"
+              placeholder="Jalisco"
             />
           </div>
         </div>

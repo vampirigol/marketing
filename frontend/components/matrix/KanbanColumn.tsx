@@ -38,7 +38,9 @@ function arePropsEqual(prevProps: KanbanColumnProps, nextProps: KanbanColumnProp
     prevProps.isLoading !== nextProps.isLoading ||
     prevProps.hasMore !== nextProps.hasMore ||
     prevProps.totalCount !== nextProps.totalCount ||
-    prevProps.conversionRate !== nextProps.conversionRate
+    prevProps.conversionRate !== nextProps.conversionRate ||
+    prevProps.viewMode !== nextProps.viewMode ||
+    prevProps.density !== nextProps.density
   ) {
     return false;
   }

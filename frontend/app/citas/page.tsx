@@ -74,11 +74,50 @@ export default function CitasPage() {
   const [showSidebarDia, setShowSidebarDia] = useState(false);
   const [fechaSidebarSeleccionada, setFechaSidebarSeleccionada] = useState<Date | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [sucursalActual, setSucursalActual] = useState('Guadalajara');
+
+  const automatizacionesDemo = [
+    {
+      titulo: 'Confirmación T-24h',
+      detalle: 'WhatsApp · Solicitar asistencia',
+      estado: 'Activo',
+    },
+    {
+      titulo: 'Recordatorio T-3h',
+      detalle: 'SMS · Mensaje final',
+      estado: 'Activo',
+    },
+    {
+      titulo: 'Check-in T+15m',
+      detalle: 'Recepción · En espera',
+      estado: 'Activo',
+    },
+  ];
+
+  const reglasClave = [
+    'Promo: 1 re-agendo con beneficio',
+    'Segundo re-agendo sin promoción',
+    'Empalmes permitidos por médico',
+  ];
 
   // Cargar citas demo al montar
   useEffect(() => {
     cargarCitasDemo();
   }, []);
+
+  // Cargar sucursal desde localStorage
+  useEffect(() => {
+    const savedSucursal = localStorage.getItem('sucursalActual');
+    if (savedSucursal) {
+      setSucursalActual(savedSucursal);
+    }
+  }, []);
+
+  // Limpiar doctores seleccionados si no pertenecen a la sucursal actual
+  useEffect(() => {
+    const doctoresSucursal = DOCTORES.filter(d => d.sucursal === sucursalActual).map(d => d.id);
+    setSelectedDoctores((prev) => prev.filter(id => doctoresSucursal.includes(id)));
+  }, [sucursalActual]);
 
   // Cerrar menú de exportación al hacer click fuera
   useEffect(() => {
@@ -173,13 +212,25 @@ export default function CitasPage() {
         const minuto = Math.random() > 0.5 ? 0 : 30;
         const horaCita = `${hora.toString().padStart(2, '0')}:${minuto.toString().padStart(2, '0')}`;
 
-        const estados: Cita['estado'][] = ['Agendada', 'Confirmada', 'Llegó', 'En_Atencion', 'Finalizada'];
+        const estados: Cita['estado'][] = [
+          'Agendada',
+          'Pendiente_Confirmacion',
+          'Confirmada',
+          'Reagendada',
+          'Llegó',
+          'En_Atencion',
+          'En_Espera',
+          'Finalizada',
+          'Cancelada',
+          'Inasistencia',
+          'Perdido'
+        ];
         const tiposConsulta = ['Primera Vez', 'Subsecuente', 'Urgencia', 'Control'];
         const medicos = ['Dr. López', 'Dra. Ramírez', 'Dr. González', 'Dra. Torres'];
         const sucursales = [
-          { id: 'suc-1', nombre: 'CDMX Centro' },
-          { id: 'suc-2', nombre: 'Guadalajara' },
-          { id: 'suc-3', nombre: 'Monterrey' }
+          { id: 'suc-1', nombre: 'Guadalajara' },
+          { id: 'suc-2', nombre: 'Ciudad Juárez' },
+          { id: 'suc-3', nombre: 'Ciudad Obregón' }
         ];
         const nombres = [
           'María González', 'Pedro López', 'Ana Martínez', 'Carlos Rodríguez',
@@ -210,7 +261,7 @@ export default function CitasPage() {
           medicoAsignado: medicos[Math.floor(Math.random() * medicos.length)],
           estado: estados[Math.floor(Math.random() * estados.length)],
           esPromocion,
-          reagendaciones: Math.random() > 0.8 ? Math.floor(Math.random() * 2) + 1 : 0,
+          reagendaciones: Math.random() > 0.85 ? Math.floor(Math.random() * 2) + 1 : 0,
           costoConsulta,
           montoAbonado,
           saldoPendiente: costoConsulta - montoAbonado,
@@ -227,6 +278,9 @@ export default function CitasPage() {
 
   // Filtrar citas según filtros aplicados
   const citasFiltradas = citas.filter((cita) => {
+    if (sucursalActual && cita.sucursalNombre && cita.sucursalNombre !== sucursalActual) {
+      return false;
+    }
     // Filtro de fecha según vista
     const fechaCita = new Date(cita.fechaCita);
     
@@ -318,18 +372,25 @@ export default function CitasPage() {
   // Drag & Drop para reagendar
   const handleDragCita = (citaId: string, nuevaFecha: Date, nuevaHora: string) => {
     setCitas(prev => prev.map(c => {
-      if (c.id === citaId) {
-        return {
-          ...c,
-          fechaCita: nuevaFecha,
-          horaCita: nuevaHora,
-          reagendaciones: (c.reagendaciones || 0) + 1
-        };
-      }
-      return c;
+      if (c.id !== citaId) return c;
+
+      const reagendacionesPrevias = c.reagendaciones || 0;
+      const nuevaReagendacion = reagendacionesPrevias + 1;
+      const pierdePromocion = c.esPromocion && reagendacionesPrevias >= 1;
+
+      return {
+        ...c,
+        fechaCita: nuevaFecha,
+        horaCita: nuevaHora,
+        reagendaciones: nuevaReagendacion,
+        esPromocion: pierdePromocion ? false : c.esPromocion,
+        estado: 'Reagendada',
+        notas: pierdePromocion
+          ? 'Reagendada: promoción agotada'
+          : 'Reagendada: promoción aplicada'
+      };
     }));
-    
-    // Mostrar notificación de éxito
+
     const cita = citas.find(c => c.id === citaId);
     if (cita) {
       console.log(`✅ Cita reagendada: ${cita.pacienteNombre} - ${nuevaFecha.toLocaleDateString('es-MX')} ${nuevaHora}`);
@@ -398,7 +459,7 @@ export default function CitasPage() {
 
     // Filtro de doctores seleccionados
     if (selectedDoctores.length > 0) {
-      const doctor = DOCTORES.find(d => d.nombre === cita.doctor);
+      const doctor = DOCTORES.find(d => d.nombre === cita.doctor || d.nombre === cita.medicoAsignado);
       if (!doctor || !selectedDoctores.includes(doctor.id)) {
         return false;
       }
@@ -411,7 +472,11 @@ export default function CitasPage() {
   const estadisticas = {
     total: citasFiltradasCompleto.length,
     confirmadas: citasFiltradasCompleto.filter(c => c.estado === 'Confirmada').length,
-    pendientes: citasFiltradasCompleto.filter(c => c.estado === 'Agendada').length,
+    pendientes: citasFiltradasCompleto.filter(c =>
+      c.estado === 'Agendada' ||
+      c.estado === 'Pendiente_Confirmacion' ||
+      c.estado === 'Reagendada'
+    ).length,
     promociones: citasFiltradasCompleto.filter(c => c.esPromocion).length,
     saldoPendiente: citasFiltradasCompleto.reduce((acc, c) => acc + c.saldoPendiente, 0)
   };
@@ -430,7 +495,7 @@ export default function CitasPage() {
               📅 Agenda de Citas
             </h1>
             <p className="text-gray-600 mt-1">
-              Gestión y calendario de citas médicas
+              Gestión y calendario de citas médicas · {sucursalActual}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -666,6 +731,49 @@ export default function CitasPage() {
           </div>
         </div>
 
+        {/* Automatizaciones y reglas */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Automatizaciones demo</h3>
+            <div className="space-y-3">
+              {automatizacionesDemo.map((item) => (
+                <div key={item.titulo} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{item.titulo}</p>
+                    <p className="text-xs text-gray-500">{item.detalle}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                    {item.estado}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Reglas clave</h3>
+            <ul className="space-y-2 text-sm text-gray-600">
+              {reglasClave.map((regla) => (
+                <li key={regla} className="flex items-start gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  <span>{regla}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-blue-900 mb-2">Alertas activas</h3>
+            <p className="text-xs text-blue-700">
+              Se muestran 8 citas con confirmación pendiente y 3 con riesgo de inasistencia.
+            </p>
+            <div className="mt-3 flex items-center gap-2 text-xs text-blue-800">
+              <span className="inline-flex h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+              Monitoreo en tiempo real (demo)
+            </div>
+          </div>
+        </div>
+
         {/* Filtros */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -814,6 +922,7 @@ export default function CitasPage() {
               selectedDoctores={selectedDoctores}
               onChange={setSelectedDoctores}
               multiSelect={true}
+              fixedSucursal={sucursalActual}
             />
 
             {/* Resumen rápido */}

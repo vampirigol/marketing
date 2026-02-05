@@ -1,11 +1,13 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 import {
   LayoutDashboard,
+  Layers,
   Users,
   Calendar,
   MessageSquare,
@@ -17,19 +19,12 @@ import {
   UserCheck,
   ChevronDown,
 } from 'lucide-react';
-
-const SUCURSALES = [
-  'Valle de la Trinidad',
-  'Guadalajara',
-  'Ciudad Obregón',
-  'Ciudad Juárez',
-  'Loreto Héroes',
-  'Loreto Centro',
-  'Clínica Virtual Adventista',
-];
+import logoClinicas from '../../../src/Logos Clínicas/Logos Red de Clínicas Adventistas/cruz clinica sin fondo.png';
+import { SUCURSALES } from '@/lib/doctores-data';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'CRM', href: '/crm', icon: Layers },
   { name: 'Recepción', href: '/recepcion', icon: UserCheck },
   { name: 'Pacientes', href: '/pacientes', icon: Users },
   { name: 'Citas', href: '/citas', icon: Calendar },
@@ -41,7 +36,7 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [sucursalActual, setSucursalActual] = useState('CDMX Centro');
+  const [sucursalActual, setSucursalActual] = useState('Guadalajara');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -81,8 +76,13 @@ export function Sidebar() {
       {/* Logo */}
       <div className="h-20 flex items-center px-6 border-b border-gray-100">
         <Link href="/" className="flex items-center space-x-3 group">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
-            <span className="text-xl">🏥</span>
+          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm ring-1 ring-gray-200 group-hover:scale-105 transition-transform duration-200">
+            <Image
+              src={logoClinicas}
+              alt="Clínicas Adventistas"
+              className="h-7 w-7 object-contain"
+              priority
+            />
           </div>
           <div className="flex flex-col">
             <span className="text-base font-bold text-gray-900">CRM RCA</span>

@@ -246,7 +246,7 @@ curl -X POST http://localhost:3001/api/contactos \
     "nombreCompleto": "Juan Pérez",
     "telefono": "5512345678",
     "sucursalId": "suc-1",
-    "sucursalNombre": "CDMX Centro",
+    "sucursalNombre": "Guadalajara",
     "motivo": "Urgencia",
     "preferenciaContacto": "WhatsApp"
   }'

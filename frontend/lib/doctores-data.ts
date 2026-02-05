@@ -44,7 +44,14 @@ export const DOCTORES: Doctor[] = [
 
 export const ESPECIALIDADES = Array.from(new Set(DOCTORES.map(d => d.especialidad))).sort();
 
-export const SUCURSALES = Array.from(new Set(DOCTORES.map(d => d.sucursal))).sort();
+const SUCURSALES_EXTRA = [
+  'Guadalajara',
+  'Valle de la Trinidad',
+];
+
+export const SUCURSALES = Array.from(
+  new Set([...DOCTORES.map(d => d.sucursal), ...SUCURSALES_EXTRA])
+).sort();
 
 export function getDoctoresPorSucursal(sucursal: string): Doctor[] {
   return DOCTORES.filter(d => d.sucursal === sucursal);
@@ -52,6 +59,35 @@ export function getDoctoresPorSucursal(sucursal: string): Doctor[] {
 
 export function getDoctoresPorEspecialidad(especialidad: string): Doctor[] {
   return DOCTORES.filter(d => d.especialidad === especialidad);
+}
+
+const SERVICIOS_POR_ESPECIALIDAD: Record<string, string[]> = {
+  'Medicina General': ['Consulta Medicina General', 'Checkup Preventivo'],
+  'Odontología': ['Consulta Odontológica', 'Limpieza Dental', 'Resina Dental'],
+  'Oftalmología': ['Consulta Oftalmológica', 'Examen Visual Completo'],
+  'Retinología': ['Evaluación Retinal', 'Mapeo Retiniano'],
+  'Nutriología': ['Consulta Nutricional', 'Plan Alimenticio'],
+  'Psicología': ['Sesión de Psicología', 'Terapia Familiar'],
+  'Optometría': ['Examen Optométrico'],
+  'Ortodoncia': ['Evaluación de Ortodoncia'],
+  'Pastoral': ['Orientación Pastoral'],
+  'Pediatría': ['Consulta Pediátrica'],
+};
+
+const SERVICIOS_FALLBACK = ['Consulta Medicina General', 'Checkup Preventivo'];
+
+export function getEspecialidadesPorSucursal(sucursal: string): string[] {
+  const especialidades = DOCTORES.filter(d => d.sucursal === sucursal)
+    .map(d => d.especialidad);
+  if (especialidades.length === 0) return ESPECIALIDADES;
+  return Array.from(new Set(especialidades)).sort();
+}
+
+export function getServiciosPorSucursal(sucursal: string): string[] {
+  const especialidades = getEspecialidadesPorSucursal(sucursal);
+  const servicios = especialidades.flatMap((especialidad) => SERVICIOS_POR_ESPECIALIDAD[especialidad] || []);
+  if (servicios.length === 0) return SERVICIOS_FALLBACK;
+  return Array.from(new Set(servicios));
 }
 
 export function obtenerDoctorPorId(doctorId: string): Doctor | undefined {

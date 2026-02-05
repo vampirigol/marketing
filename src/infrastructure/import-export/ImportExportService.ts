@@ -233,8 +233,8 @@ export class ImportExportService {
         genero: 'Masculino',
         fechaNacimiento: '1990-01-15',
         direccion: 'Calle Principal 123',
-        ciudad: 'CDMX',
-        estado: 'Ciudad de México',
+        ciudad: 'Guadalajara',
+        estado: 'Jalisco',
         origen: 'WhatsApp',
         notas: 'Cliente preferente',
         sucursalId: 'SUC_001'
@@ -246,8 +246,8 @@ export class ImportExportService {
         genero: 'Femenino',
         fechaNacimiento: '1985-05-20',
         direccion: 'Av. Reforma 456',
-        ciudad: 'CDMX',
-        estado: 'Ciudad de México',
+        ciudad: 'Guadalajara',
+        estado: 'Jalisco',
         origen: 'Facebook',
         notas: '',
         sucursalId: 'SUC_002'
@@ -269,8 +269,8 @@ export class ImportExportService {
         genero: 'Masculino',
         fechaNacimiento: '1990-01-15',
         direccion: 'Calle Principal 123',
-        ciudad: 'CDMX',
-        estado: 'Ciudad de México',
+        ciudad: 'Guadalajara',
+        estado: 'Jalisco',
         origen: 'WhatsApp',
         notas: 'Cliente preferente',
         sucursalId: 'SUC_001'

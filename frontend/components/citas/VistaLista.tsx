@@ -96,12 +96,20 @@ export function VistaLista({ citas, onSelectCita, onUpdateNota, searchQuery = ''
 
   const getEstadoConfig = (estado: string) => {
     const configs: Record<string, { color: string; bg: string; icon: any; label: string }> = {
-      'Confirmado': { color: 'text-green-700', bg: 'bg-green-100 border-green-300', icon: CheckCircle, label: 'Confirmado' },
-      'Pendiente': { color: 'text-yellow-700', bg: 'bg-yellow-100 border-yellow-300', icon: Clock, label: 'Pendiente' },
-      'Cancelado': { color: 'text-red-700', bg: 'bg-red-100 border-red-300', icon: XCircle, label: 'Cancelado' },
-      'No_Asistio': { color: 'text-orange-700', bg: 'bg-orange-100 border-orange-300', icon: AlertCircle, label: 'No Asistió' }
+      Agendada: { color: 'text-blue-700', bg: 'bg-blue-100 border-blue-300', icon: Clock, label: 'Agendada' },
+      Pendiente_Confirmacion: { color: 'text-amber-700', bg: 'bg-amber-100 border-amber-300', icon: Clock, label: 'Pendiente' },
+      Confirmada: { color: 'text-green-700', bg: 'bg-green-100 border-green-300', icon: CheckCircle, label: 'Confirmada' },
+      Reagendada: { color: 'text-indigo-700', bg: 'bg-indigo-100 border-indigo-300', icon: TrendingUp, label: 'Reagendada' },
+      Llegó: { color: 'text-purple-700', bg: 'bg-purple-100 border-purple-300', icon: CheckCircle, label: 'Llegó' },
+      En_Atencion: { color: 'text-blue-700', bg: 'bg-blue-100 border-blue-300', icon: AlertCircle, label: 'En atención' },
+      En_Espera: { color: 'text-sky-700', bg: 'bg-sky-100 border-sky-300', icon: AlertCircle, label: 'En espera' },
+      Finalizada: { color: 'text-gray-700', bg: 'bg-gray-100 border-gray-300', icon: CheckCircle, label: 'Finalizada' },
+      Cancelada: { color: 'text-red-700', bg: 'bg-red-100 border-red-300', icon: XCircle, label: 'Cancelada' },
+      Inasistencia: { color: 'text-rose-700', bg: 'bg-rose-100 border-rose-300', icon: AlertCircle, label: 'Inasistencia' },
+      Perdido: { color: 'text-slate-700', bg: 'bg-slate-100 border-slate-300', icon: AlertCircle, label: 'Perdido' },
+      No_Asistio: { color: 'text-rose-700', bg: 'bg-rose-100 border-rose-300', icon: AlertCircle, label: 'No asistió' }
     };
-    return configs[estado] || configs['Pendiente'];
+    return configs[estado] || configs['Agendada'];
   };
 
   const highlightText = (text: string) => {
@@ -141,10 +149,16 @@ export function VistaLista({ citas, onSelectCita, onUpdateNota, searchQuery = ''
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               >
                 <option value="all">Todos</option>
-                <option value="Confirmado">Confirmados</option>
-                <option value="Pendiente">Pendientes</option>
-                <option value="Cancelado">Cancelados</option>
-                <option value="No_Asistio">No Asistió</option>
+                <option value="Agendada">Agendadas</option>
+                <option value="Pendiente_Confirmacion">Pendiente confirmación</option>
+                <option value="Confirmada">Confirmadas</option>
+                <option value="Reagendada">Reagendadas</option>
+                <option value="En_Espera">En espera</option>
+                <option value="Finalizada">Finalizadas</option>
+                <option value="Cancelada">Canceladas</option>
+                <option value="Inasistencia">Inasistencia</option>
+                <option value="Perdido">Perdidos</option>
+                <option value="No_Asistio">No asistió</option>
               </select>
             </div>
           </div>

@@ -43,7 +43,7 @@ const testCrearSolicitud = () => {
     whatsapp: '5512345678',
     email: 'juan@ejemplo.com',
     sucursalId: 'suc-1',
-    sucursalNombre: 'CDMX Centro',
+    sucursalNombre: 'Guadalajara',
     motivo: 'Urgencia',
     motivoDetalle: 'Necesito cambiar mi cita de hoy',
     preferenciaContacto: 'WhatsApp',
@@ -67,7 +67,7 @@ const testCrearSolicitud = () => {
   
   console.log('\n   📱 Mensaje enviado al cliente:');
   console.log('   "✅ Solicitud registrada exitosamente!');
-  console.log('    Un agente de CDMX Centro se comunicará contigo');
+  console.log('    Un agente de Guadalajara se comunicará contigo');
   console.log('    en aproximadamente 15 minutos por WhatsApp."');
   
   console.log('\n✅ RESULTADO: Solicitud creada exitosamente\n');

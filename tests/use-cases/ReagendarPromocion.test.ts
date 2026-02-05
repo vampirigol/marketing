@@ -158,7 +158,7 @@ describe('Escenarios Reales de RCA', () => {
       nuevaFecha: new Date('2026-02-10'),
       nuevaHora: '16:00',
       usuarioId: 'keila',
-      sucursalId: 'monterrey',
+      sucursalId: 'ciudad-juarez',
       precioRegular: 500,
       motivo: 'Junta de trabajo'
     });
@@ -177,7 +177,7 @@ describe('Escenarios Reales de RCA', () => {
       nuevaFecha: new Date('2026-02-12'),
       nuevaHora: '10:00',
       usuarioId: 'keila',
-      sucursalId: 'monterrey',
+      sucursalId: 'ciudad-juarez',
       precioRegular: 500,
       motivo: 'Ahora no puede el día que cambió'
     });

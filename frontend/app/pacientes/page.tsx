@@ -19,13 +19,21 @@ import {
   Download,
   Upload
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 export default function PacientesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPaciente, setSelectedPaciente] = useState(null);
+  const [sucursalActual, setSucursalActual] = useState('Guadalajara');
+
+  useEffect(() => {
+    const savedSucursal = localStorage.getItem('sucursalActual');
+    if (savedSucursal) {
+      setSucursalActual(savedSucursal);
+    }
+  }, []);
 
   const handleCreatePaciente = () => {
     setSelectedPaciente(null);
@@ -51,7 +59,8 @@ export default function PacientesPage() {
       email: 'maria.gonzalez@email.com',
       noAfiliacion: 'RCA-2024-001',
       edad: 32,
-      ciudad: 'CDMX',
+      ciudad: 'Guadalajara',
+      sucursal: 'Guadalajara',
       ultimaCita: '15 Ene 2026',
       estado: 'Activo'
     },
@@ -62,7 +71,8 @@ export default function PacientesPage() {
       email: 'pedro.sanchez@email.com',
       noAfiliacion: 'RCA-2024-002',
       edad: 45,
-      ciudad: 'Guadalajara',
+      ciudad: 'Ciudad Juárez',
+      sucursal: 'Ciudad Juárez',
       ultimaCita: '28 Ene 2026',
       estado: 'Activo'
     },
@@ -73,7 +83,8 @@ export default function PacientesPage() {
       email: 'ana.martinez@email.com',
       noAfiliacion: 'RCA-2024-003',
       edad: 28,
-      ciudad: 'Monterrey',
+      ciudad: 'Ciudad Obregón',
+      sucursal: 'Ciudad Obregón',
       ultimaCita: '01 Feb 2026',
       estado: 'Activo'
     },
@@ -84,18 +95,35 @@ export default function PacientesPage() {
       email: 'carlos.lopez@email.com',
       noAfiliacion: 'RCA-2024-004',
       edad: 55,
-      ciudad: 'CDMX',
+      ciudad: 'Guadalajara',
+      sucursal: 'Guadalajara',
       ultimaCita: '10 Dic 2025',
       estado: 'Inactivo'
     },
   ];
 
-  const stats = [
-    { label: 'Total Pacientes', value: '1,247', icon: '👥', color: 'from-blue-500 to-blue-600' },
-    { label: 'Nuevos (Este Mes)', value: '47', icon: '✨', color: 'from-purple-500 to-purple-600' },
-    { label: 'Con Citas Hoy', value: '23', icon: '📅', color: 'from-emerald-500 to-emerald-600' },
-    { label: 'Pendientes', value: '8', icon: '⏰', color: 'from-orange-500 to-orange-600' },
-  ];
+  const pacientesFiltrados = useMemo(() => {
+    return pacientes.filter((paciente) => {
+      if (sucursalActual && paciente.sucursal !== sucursalActual) return false;
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        paciente.nombreCompleto.toLowerCase().includes(query) ||
+        paciente.telefono.toLowerCase().includes(query) ||
+        paciente.email.toLowerCase().includes(query) ||
+        paciente.noAfiliacion.toLowerCase().includes(query)
+      );
+    });
+  }, [pacientes, searchQuery, sucursalActual]);
+
+  const stats = useMemo(() => {
+    return [
+      { label: 'Total Pacientes', value: `${pacientesFiltrados.length}`, icon: '👥', color: 'from-blue-500 to-blue-600' },
+      { label: 'Nuevos (Este Mes)', value: '47', icon: '✨', color: 'from-purple-500 to-purple-600' },
+      { label: 'Con Citas Hoy', value: '23', icon: '📅', color: 'from-emerald-500 to-emerald-600' },
+      { label: 'Pendientes', value: '8', icon: '⏰', color: 'from-orange-500 to-orange-600' },
+    ];
+  }, [pacientesFiltrados.length]);
 
   return (
     <DashboardLayout>
@@ -104,7 +132,9 @@ export default function PacientesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-display font-bold text-gray-900">Pacientes</h1>
-            <p className="text-gray-600 mt-1">Gestión completa de pacientes y expedientes</p>
+            <p className="text-gray-600 mt-1">
+              Gestión completa de pacientes · {sucursalActual}
+            </p>
           </div>
           <Button variant="primary" className="shadow-lg" onClick={handleCreatePaciente}>
             <Plus className="w-5 h-5 mr-2" />
@@ -166,7 +196,7 @@ export default function PacientesPage() {
           <CardHeader className="bg-gradient-to-r from-gray-50 to-white">
             <CardTitle className="flex items-center justify-between">
               <span>Lista de Pacientes</span>
-              <span className="text-sm text-gray-500 font-normal">{pacientes.length} resultados</span>
+              <span className="text-sm text-gray-500 font-normal">{pacientesFiltrados.length} resultados</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -201,7 +231,7 @@ export default function PacientesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {pacientes.map((paciente) => (
+                  {pacientesFiltrados.map((paciente) => (
                     <tr key={paciente.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">

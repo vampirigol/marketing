@@ -17,7 +17,7 @@ Se ha implementado la infraestructura completa para agendar citas con:
 **Archivo**: [src/api/controllers/CatalogoController.ts](src/api/controllers/CatalogoController.ts)
 
 **Funcionalidad**:
-- Sucursales: CDMX, Guadalajara, Monterrey (extensible)
+- Sucursales: Guadalajara, Ciudad Juárez, Ciudad Obregón (extensible)
 - Especialidades: Medicina General, Odontología, Ortopedia, Dermatología
 - Doctores: Asignados a sucursales con horarios y capacidad de empalmes (0-3 citas)
 - Servicios: Con precios, duración, promociones activas
@@ -27,7 +27,7 @@ Se ha implementado la infraestructura completa para agendar citas con:
 ```json
 {
   "sucursales": [
-    { "id": "suc-1", "nombre": "CDMX Centro", "zonaHoraria": "America/Mexico_City" }
+    { "id": "suc-1", "nombre": "Guadalajara", "zonaHoraria": "America/Mexico_City" }
   ],
   "especialidades": [
     { "id": "esp-1", "nombre": "Medicina General" }
@@ -134,7 +134,7 @@ const validacion = ValidadorReagendacionPromocion.validar(
 ```typescript
 {
   sucursalId: "suc-1",
-  sucursalNombre: "CDMX Centro",
+  sucursalNombre: "Guadalajara",
   especialidadId: "esp-2",
   especialidadNombre: "Odontología",
   doctorId: "doc-2",
@@ -272,7 +272,7 @@ const validacion = ValidadorReagendacionPromocion.validar(
 
 ### Catálogo Inicial
 ```
-Sucursales: 3 (CDMX, Guadalajara, Monterrey)
+Sucursales: 3 (Guadalajara, Ciudad Juárez, Ciudad Obregón)
 Especialidades: 4 (General, Odontología, Ortopedia, Dermatología)
 Doctores: 4 (1-2 por sucursal/especialidad)
 Servicios: 4 (precios 500-700, promos 250-350)

@@ -137,13 +137,13 @@ const sucursales: CatalogoSucursal[] = [
   },
   {
     id: 'suc-8',
-    nombre: 'Monterrey',
-    ciudad: 'Monterrey',
-    estado: 'Nuevo León',
-    direccion: 'Monterrey Centro',
-    telefono: '+52 81 3000 0008',
-    email: 'mty@rca.com',
-    zonaHoraria: 'America/Monterrey',
+    nombre: 'Valle de la Trinidad',
+    ciudad: 'Valle de la Trinidad',
+    estado: 'Baja California',
+    direccion: 'Valle de la Trinidad Centro',
+    telefono: '+52 646 300 0008',
+    email: 'valle@rca.com',
+    zonaHoraria: 'America/Mexico_City',
     activo: true,
   },
 ];
@@ -199,10 +199,10 @@ const doctores: CatalogoDoctor[] = [
   { id: 'doc-20', nombre: 'Psic. Psicología Virtual', especialidadId: 'esp-6', sucursalId: 'suc-7', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 60 }, capacidadEmpalmes: 4, activo: true },
   { id: 'doc-21', nombre: 'Lic. Nutrición Virtual', especialidadId: 'esp-8', sucursalId: 'suc-7', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 45 }, capacidadEmpalmes: 3, activo: true },
   
-  // Monterrey (En Línea)
-  { id: 'doc-22', nombre: 'Psic. Psicología en Línea MTY', especialidadId: 'esp-7', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 60 }, capacidadEmpalmes: 4, activo: true },
-  { id: 'doc-23', nombre: 'Dr. Medicina Integral en Línea MTY', especialidadId: 'esp-2', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 30 }, capacidadEmpalmes: 5, activo: true },
-  { id: 'doc-24', nombre: 'Lic. Nutrición en Línea MTY', especialidadId: 'esp-9', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 45 }, capacidadEmpalmes: 3, activo: true },
+  // Valle de la Trinidad (En Línea)
+  { id: 'doc-22', nombre: 'Psic. Psicología en Línea', especialidadId: 'esp-7', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 60 }, capacidadEmpalmes: 4, activo: true },
+  { id: 'doc-23', nombre: 'Dr. Medicina Integral en Línea', especialidadId: 'esp-2', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 30 }, capacidadEmpalmes: 5, activo: true },
+  { id: 'doc-24', nombre: 'Lic. Nutrición en Línea', especialidadId: 'esp-9', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 45 }, capacidadEmpalmes: 3, activo: true },
 ];
 
 const servicios: CatalogoServicio[] = [
@@ -297,7 +297,7 @@ const especialidadesPorSucursal: Record<string, string[]> = {
   'suc-4': ['esp-3', 'esp-4', 'esp-12'], // Ciudad Juárez: Odontología, Oftalmología, Óptica
   'suc-3': ['esp-1', 'esp-4', 'esp-3', 'esp-8'], // Ciudad Obregón: Medicina Integral, Oftalmología, Odontología, Nutrición
   'suc-2': ['esp-1', 'esp-4', 'esp-3', 'esp-8'], // Guadalajara: Medicina Integral, Oftalmología, Odontología, Nutrición
-  'suc-8': ['esp-7', 'esp-2', 'esp-9'], // Monterrey: Psicología en Línea, Medicina Integral en Línea, Nutrición en Línea
+  'suc-8': ['esp-7', 'esp-2', 'esp-9'], // Valle de la Trinidad: Psicología en Línea, Medicina Integral en Línea, Nutrición en Línea
 };
 
 export class CatalogoController {

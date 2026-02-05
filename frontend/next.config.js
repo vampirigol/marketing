@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    externalDir: true,
+  },
   eslint: {
     // Deshabilitar ESLint durante build de producción
     ignoreDuringBuilds: true,

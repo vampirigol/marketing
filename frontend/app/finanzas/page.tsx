@@ -70,16 +70,16 @@ export default function FinanzasPage() {
   ];
 
   const ingresosPorSucursal = [
-    { sucursal: 'CDMX Centro', monto: 15450, porcentaje: 34 },
-    { sucursal: 'Guadalajara', monto: 12800, porcentaje: 28 },
-    { sucursal: 'Monterrey', monto: 10230, porcentaje: 23 },
-    { sucursal: 'Puebla', monto: 6800, porcentaje: 15 }
+    { sucursal: 'Guadalajara', monto: 15450, porcentaje: 34 },
+    { sucursal: 'Ciudad Juárez', monto: 12800, porcentaje: 28 },
+    { sucursal: 'Ciudad Obregón', monto: 10230, porcentaje: 23 },
+    { sucursal: 'Loreto Héroes', monto: 6800, porcentaje: 15 }
   ];
 
   const cortesPendientes = [
-    { 
+    {
       id: '1',
-      sucursal: 'CDMX Centro',
+      sucursal: 'Guadalajara',
       fecha: 'Ayer',
       monto: 12450,
       estado: 'pendiente' as const
@@ -91,9 +91,9 @@ export default function FinanzasPage() {
       monto: 8920,
       estado: 'pendiente' as const
     },
-    { 
+    {
       id: '3',
-      sucursal: 'Monterrey',
+      sucursal: 'Ciudad Juárez',
       fecha: '01-Feb',
       monto: 15300,
       estado: 'pendiente' as const
@@ -111,7 +111,7 @@ export default function FinanzasPage() {
       tiempo: '10:18',
       usuario: 'Antonio',
       accion: 'aprobó corte',
-      detalle: 'Monterrey - $15,300'
+      detalle: 'Ciudad Juárez - $15,300'
     },
     {
       tiempo: '10:05',
@@ -153,10 +153,10 @@ export default function FinanzasPage() {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="todas">Todas las sucursales</option>
-              <option value="cdmx">CDMX Centro</option>
               <option value="gdl">Guadalajara</option>
-              <option value="mty">Monterrey</option>
-              <option value="pue">Puebla</option>
+              <option value="cjs">Ciudad Juárez</option>
+              <option value="cob">Ciudad Obregón</option>
+              <option value="lor">Loreto Héroes</option>
             </select>
             <select 
               value={selectedPeriodo}

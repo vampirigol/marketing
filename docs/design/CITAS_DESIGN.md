@@ -238,7 +238,7 @@ Color del día:
 │  ═══════════════════════════════════════════════════    │
 │                                                          │
 │  Sucursal: *                                             │
-│  [CDMX Centro                                      ▼]   │
+│  [Guadalajara                                      ▼]   │
 │                                                          │
 │  Especialidad: *                                         │
 │  [Medicina General                                 ▼]   │
@@ -413,7 +413,7 @@ Color del día:
 │  ⚙️ CONFIGURAR DISPONIBILIDAD                            │
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
-│  Sucursal: [CDMX Centro                            ▼]   │
+│  Sucursal: [Guadalajara                            ▼]   │
 │  Médico:   [Dr. López                              ▼]   │
 │                                                          │
 │  Horario de trabajo:                                     │
@@ -543,7 +543,7 @@ Precio: $350 (regular)
 ```
 En header siempre visible:
 
-📍 CDMX Centro • 🕐 10:25 AM (GMT-6)
+📍 Guadalajara • 🕐 10:25 AM (GMT-6)
 
 Si usuario gestiona múltiples sucursales:
 Alerta automática del cambio de zona horaria

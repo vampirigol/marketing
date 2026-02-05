@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import Database from './infrastructure/database/Database';
@@ -11,6 +12,7 @@ import { RemarketingService } from './infrastructure/remarketing/RemarketingServ
 import { WhatsAppService } from './infrastructure/messaging/WhatsAppService';
 import { FacebookService } from './infrastructure/messaging/FacebookService';
 import { InstagramService } from './infrastructure/messaging/InstagramService';
+import { initializeWebSocket } from './infrastructure/websocket/WebSocketServer';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -192,8 +194,11 @@ const startServer = async () => {
     schedulerManager.start();
     console.log('✅ Sistema de schedulers iniciado\n');
 
-    // 6. Iniciar servidor HTTP
-    app.listen(PORT, '0.0.0.0', () => {
+    // 6. Iniciar servidor HTTP + WebSocket
+    const httpServer = http.createServer(app);
+    initializeWebSocket(httpServer);
+
+    httpServer.listen(PORT, '0.0.0.0', () => {
       console.log('╔═══════════════════════════════════════════════════════╗');
       console.log('║     🏥 SISTEMA CRM RCA INICIADO CORRECTAMENTE ✅      ║');
       console.log('╚═══════════════════════════════════════════════════════╝\n');

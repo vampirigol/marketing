@@ -43,7 +43,9 @@ function arePropsEqual(prevProps: LeadCardProps, nextProps: LeadCardProps): bool
   return (
     compararLeads(prevProps.lead, nextProps.lead) &&
     prevProps.style === nextProps.style &&
-    prevProps.isDragging === nextProps.isDragging
+    prevProps.isDragging === nextProps.isDragging &&
+    prevProps.viewMode === nextProps.viewMode &&
+    prevProps.density === nextProps.density
   );
 }
 
@@ -107,6 +109,15 @@ export const LeadCard = memo(function LeadCard({
     return customFieldsSettings.fields.filter((f) => visibleSet.has(f.id));
   }, [customFieldsSettings]);
 
+  const servicioLead = typeof lead.customFields?.Servicio === 'string' ? lead.customFields?.Servicio : undefined;
+  const sucursalLead = typeof lead.customFields?.Sucursal === 'string' ? lead.customFields?.Sucursal : undefined;
+  const campanaLead = typeof lead.customFields?.Campana === 'string' ? lead.customFields?.Campana : undefined;
+  const resumenInteres = useMemo(() => {
+    const partes = [servicioLead, campanaLead].filter(Boolean);
+    if (partes.length > 0) return partes.join(' · ');
+    return lead.notas || '';
+  }, [servicioLead, campanaLead, lead.notas]);
+
   const estadoVendedor = lead.estadoVendedor || 'ausente';
   const estadoVendedorLabel =
     estadoVendedor === 'en-llamada'
@@ -135,7 +146,9 @@ export const LeadCard = memo(function LeadCard({
   };
 
   const densityClasses =
-    density === 'dense'
+    viewMode === 'compact'
+      ? 'p-2'
+      : density === 'dense'
       ? 'p-2'
       : density === 'compact'
       ? 'p-2.5'
@@ -164,26 +177,11 @@ export const LeadCard = memo(function LeadCard({
       />
 
       {/* Checkbox de selección */}
-      <label
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleLeadSelection(lead.id, true);
-        }}
-        className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 cursor-pointer"
-      >
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => {}}
-          className="w-4 h-4 cursor-pointer accent-blue-500"
-        />
-      </label>
-
       {/* Drag Handle */}
       <div
         {...attributes}
         {...listeners}
-        className="absolute left-7 top-0 bottom-0 w-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+        className="absolute right-2 top-2 w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
       >
         <GripVertical className="w-4 h-4 text-gray-400" />
       </div>
@@ -195,104 +193,112 @@ export const LeadCard = memo(function LeadCard({
         </div>
       )}
 
-      {/* Botón flotante de conversión */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowConversionModal(true);
-        }}
-        className="absolute top-2 right-2 p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-md hover:shadow-lg transition-all opacity-0 group-hover:opacity-100 z-10"
-        title="Convertir a paciente"
-      >
-        <RotateCw className="w-4 h-4" />
-      </button>
+      {/* Botón flotante de conversión (solo expandida) */}
+      {viewMode === 'expanded' && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowConversionModal(true);
+          }}
+          className="absolute top-2 right-2 p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-md hover:shadow-lg transition-all opacity-0 group-hover:opacity-100 z-10"
+          title="Convertir a paciente"
+        >
+          <RotateCw className="w-4 h-4" />
+        </button>
+      )}
 
       {/* Header con avatar y acciones */}
-      <div className={`flex items-start justify-between ${viewMode === 'compact' ? 'mb-1' : 'mb-3'} ml-10`}>
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {/* Avatar */}
-          {viewMode === 'expanded' && lead.avatar ? (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl">
-              {lead.avatar}
-            </div>
-          ) : viewMode === 'expanded' ? (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
-              {iniciales}
-            </div>
-          ) : null}
-          {viewMode === 'compact' && (
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px]">
-              {iniciales}
-            </div>
-          )}
-          
-          {/* Nombre */}
-          <div className="flex-1 min-w-0">
-            <h3 className={`font-semibold text-gray-900 truncate ${titleClass}`}>
-              {lead.nombre}
-            </h3>
-            {viewMode === 'expanded' && (
-              <div className="flex items-center gap-1 mt-0.5">
-                <Calendar className="w-3 h-3 text-gray-400" />
-                <span className="text-xs text-gray-500">
-                  {fechaFormateada}
-                </span>
+      <div className={`flex items-start justify-between ${viewMode === 'compact' ? 'mb-1' : 'mb-3'} text-left`}>
+        <div className="grid grid-cols-[auto_1fr] gap-3 flex-1 min-w-0">
+          {/* Checkbox */}
+          <label
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleLeadSelection(lead.id, true);
+            }}
+            className="mt-1 flex items-center justify-center w-5 h-5 cursor-pointer flex-shrink-0"
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => {}}
+              className="w-4 h-4 cursor-pointer accent-blue-500"
+            />
+          </label>
+
+          <div className="flex items-start gap-3 min-w-0">
+            {/* Avatar */}
+            {viewMode === 'expanded' && lead.avatar ? (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl">
+                {lead.avatar}
+              </div>
+            ) : viewMode === 'expanded' ? (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+                {iniciales}
+              </div>
+            ) : null}
+            {viewMode === 'compact' && (
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-[10px]">
+                {iniciales}
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Estado del vendedor y acciones */}
-        <div className="flex items-center gap-2">
-          {lead.asignadoA && (
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                {lead.asignadoAvatar ? (
-                  <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-base">
-                    {lead.asignadoAvatar}
-                  </div>
-                ) : (
-                  <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600">
-                    {vendedorIniciales}
-                  </div>
+            {/* Nombre + meta */}
+            <div className="flex-1 min-w-0 text-left">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className={`font-semibold text-gray-900 truncate ${titleClass}`}>
+                  {lead.nombre}
+                </h3>
+                {viewMode === 'expanded' && (
+                  <button className="p-1 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                    <MoreVertical className="w-4 h-4 text-gray-400" />
+                  </button>
                 )}
-                <span
-                  className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
-                    estadoVendedor === 'en-llamada'
-                      ? 'bg-emerald-500'
-                      : estadoVendedor === 'escribiendo'
-                      ? 'bg-blue-500'
-                      : 'bg-gray-400'
-                  }`}
-                />
               </div>
-              {viewMode === 'expanded' ? (
-                <span className="text-[10px] text-gray-500 whitespace-nowrap">
-                  {estadoVendedorLabel}
-                </span>
-              ) : (
-                <span className="text-[10px] text-gray-500" title={estadoVendedorLabel}>
-                  {estadoVendedorLabel.split(' ')[0]}
-                </span>
+
+              {viewMode === 'expanded' && (
+                <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 justify-start">
+                  <Calendar className="w-3 h-3 text-gray-400" />
+                  <span>{fechaFormateada}</span>
+                </div>
+              )}
+
+              {viewMode === 'expanded' && lead.asignadoA && (
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] text-gray-600 justify-start">
+                  <div className="flex items-center gap-2">
+                    {lead.asignadoAvatar ? (
+                      <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-sm">
+                        {lead.asignadoAvatar}
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600">
+                        {vendedorIniciales}
+                      </div>
+                    )}
+                    <span className="truncate max-w-[140px]">{lead.asignadoA}</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                    {estadoVendedorLabel}
+                  </span>
+                  {showConflicto && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold"
+                      title="Conflicto: varios editores"
+                    >
+                      Conflicto
+                    </span>
+                  )}
+                </div>
               )}
             </div>
-          )}
-
-          {showConflicto && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold" title="Conflicto: varios editores">
-              Conflicto
-            </span>
-          )}
-
-          <button className="p-1 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-            <MoreVertical className="w-4 h-4 text-gray-400" />
-          </button>
+          </div>
         </div>
       </div>
 
       {/* Información de contacto */}
       {viewMode === 'expanded' && (
-        <div className="space-y-1.5 mb-3">
+        <div className="mb-3 text-left">
+          <div className="space-y-1.5 rounded-lg border border-gray-100 bg-gray-50/70 p-2">
           {lead.telefono && (
             <div className="flex items-center gap-2 text-xs text-gray-600">
               <Phone className="w-3.5 h-3.5 text-gray-400" />
@@ -304,6 +310,30 @@ export const LeadCard = memo(function LeadCard({
               <Mail className="w-3.5 h-3.5 text-gray-400" />
               <span className="truncate">{lead.email}</span>
             </div>
+          )}
+          </div>
+        </div>
+      )}
+
+      {/* Vista compacta: contacto + interés */}
+      {viewMode === 'compact' && (
+        <div className="space-y-1.5 mb-2">
+          {lead.telefono && (
+            <div className="flex items-center gap-2 text-[11px] text-gray-600">
+              <Phone className="w-3.5 h-3.5 text-gray-400" />
+              <span className="truncate">{lead.telefono}</span>
+            </div>
+          )}
+          {lead.email && (
+            <div className="flex items-center gap-2 text-[11px] text-gray-600">
+              <Mail className="w-3.5 h-3.5 text-gray-400" />
+              <span className="truncate">{lead.email}</span>
+            </div>
+          )}
+          {resumenInteres && (
+            <p className="text-[11px] text-gray-600 line-clamp-2">
+              Interés en {resumenInteres}
+            </p>
           )}
         </div>
       )}
@@ -367,7 +397,7 @@ export const LeadCard = memo(function LeadCard({
 
       {/* Análisis predictivo */}
       {viewMode === 'expanded' && (
-        <div className="mb-3 p-2.5 rounded-lg border border-indigo-200 bg-indigo-50">
+        <div className="mb-3 mt-1 p-2.5 rounded-lg border border-indigo-200 bg-indigo-50">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-semibold text-indigo-700 uppercase tracking-wide">
               Análisis Predictivo
@@ -398,7 +428,7 @@ export const LeadCard = memo(function LeadCard({
       )}
 
       {/* Footer: Canal, Etiquetas y Conversación */}
-      <div className={`flex items-center justify-between ${viewMode === 'compact' ? 'pt-1' : 'pt-2'} border-t border-gray-100`}>
+      <div className={`flex items-center justify-between ${viewMode === 'compact' ? 'pt-2' : 'pt-2'} border-t border-gray-100`}>
         <div className="flex items-center gap-1.5">
           {/* Canal */}
           <div className="px-2 py-0.5 bg-gray-100 rounded flex items-center gap-1">
@@ -418,10 +448,23 @@ export const LeadCard = memo(function LeadCard({
               )}
             </>
           )}
+          {viewMode === 'compact' && servicioLead && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+              {servicioLead}
+            </span>
+          )}
+          {viewMode === 'compact' && sucursalLead && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+              {sucursalLead}
+            </span>
+          )}
+          {viewMode === 'compact' && etiquetasRestantes > 0 && (
+            <span className="text-[10px] text-gray-400">+{etiquetasRestantes}</span>
+          )}
         </div>
 
         {/* Botón para abrir conversación */}
-        {lead.conversacionId && (
+        {lead.conversacionId && onOpenConversation && (
           <button
             onClick={(e) => {
               e.stopPropagation();

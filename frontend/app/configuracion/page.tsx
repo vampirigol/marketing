@@ -71,7 +71,7 @@ export default function ConfiguracionPromocionesPage() {
       vigenciaFin: '2026-02-28',
       estado: 'activa',
       usosActuales: 18,
-      sucursales: ['CDMX Centro', 'Guadalajara'],
+      sucursales: ['Guadalajara', 'Ciudad Juárez'],
       condiciones: 'No acumulable con otras promociones'
     },
     {

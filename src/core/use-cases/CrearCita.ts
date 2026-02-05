@@ -258,8 +258,8 @@ export class CrearCitaUseCase {
       sexo: 'M',
       noAfiliacion: '123456789', // CRÍTICO
       tipoAfiliacion: 'IMSS',
-      ciudad: 'Ciudad de México',
-      estado: 'CDMX',
+      ciudad: 'Guadalajara',
+      estado: 'Jalisco',
       origenLead: 'WhatsApp',
       fechaRegistro: new Date(),
       ultimaActualizacion: new Date(),

@@ -38,7 +38,7 @@ export function CortesTable() {
   const cortes: Corte[] = [
     {
       id: '1',
-      sucursal: 'CDMX Centro',
+      sucursal: 'Guadalajara',
       fecha: 'Ayer',
       fechaCompleta: new Date('2026-02-02'),
       turno: 'completo',
@@ -53,7 +53,7 @@ export function CortesTable() {
     },
     {
       id: '2',
-      sucursal: 'Guadalajara Sur',
+      sucursal: 'Guadalajara',
       fecha: 'Ayer',
       fechaCompleta: new Date('2026-02-02'),
       turno: 'completo',
@@ -68,7 +68,7 @@ export function CortesTable() {
     },
     {
       id: '3',
-      sucursal: 'Monterrey',
+      sucursal: 'Ciudad Juárez',
       fecha: '01-Feb',
       fechaCompleta: new Date('2026-02-01'),
       turno: 'completo',
@@ -82,7 +82,7 @@ export function CortesTable() {
     },
     {
       id: '4',
-      sucursal: 'Puebla',
+      sucursal: 'Ciudad Obregón',
       fecha: '01-Feb',
       fechaCompleta: new Date('2026-02-01'),
       turno: 'matutino',
@@ -96,7 +96,7 @@ export function CortesTable() {
     },
     {
       id: '5',
-      sucursal: 'CDMX Centro',
+      sucursal: 'Loreto Héroes',
       fecha: '31-Ene',
       fechaCompleta: new Date('2026-01-31'),
       turno: 'vespertino',
@@ -231,10 +231,10 @@ export function CortesTable() {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="todas">Todas las sucursales</option>
-              <option value="cdmx">CDMX Centro</option>
               <option value="gdl">Guadalajara</option>
-              <option value="mty">Monterrey</option>
-              <option value="pue">Puebla</option>
+              <option value="cjs">Ciudad Juárez</option>
+              <option value="cob">Ciudad Obregón</option>
+              <option value="lor">Loreto Héroes</option>
             </select>
             <select
               value={filterEstado}

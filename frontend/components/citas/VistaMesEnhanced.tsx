@@ -71,9 +71,16 @@ export function VistaMesEnhanced({
       });
 
       const confirmadas = citasDia.filter(c => c.estado === 'Confirmada').length;
-      const pendientes = citasDia.filter(c => c.estado === 'Agendada').length;
+      const pendientes = citasDia.filter(c =>
+        c.estado === 'Agendada' ||
+        c.estado === 'Pendiente_Confirmacion' ||
+        c.estado === 'Reagendada'
+      ).length;
       const canceladas = citasDia.filter(c => c.estado === 'Cancelada').length;
-      const noAsistio = citasDia.filter(c => c.estado === 'No_Asistio').length;
+      const noAsistio = citasDia.filter(c =>
+        c.estado === 'Inasistencia' ||
+        c.estado === 'No_Asistio'
+      ).length;
       const ingresos = citasDia.reduce((sum, c) => sum + (c.montoAbonado || 0), 0);
 
       let densidad: 'baja' | 'media' | 'alta' = 'baja';

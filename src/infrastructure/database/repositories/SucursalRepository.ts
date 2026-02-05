@@ -160,25 +160,6 @@ export class InMemorySucursalRepository implements SucursalRepository {
     const sucursalesEjemplo: Sucursal[] = [
       {
         id: 'suc-001',
-        codigo: 'RCA-CDMX-01',
-        nombre: 'Red de Clínicas - Polanco',
-        direccion: 'Av. Presidente Masaryk 111, Polanco',
-        ciudad: 'Ciudad de México',
-        estado: 'CDMX',
-        codigoPostal: '11560',
-        telefono: '+525555551234',
-        zonaHoraria: 'America/Mexico_City',
-        horarioApertura: '08:00',
-        horarioCierre: '20:00',
-        diasOperacion: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
-        consultoriosDisponibles: 5,
-        especialidades: ['Medicina General', 'Pediatría', 'Ginecología', 'Dermatología'],
-        activa: true,
-        fechaApertura: new Date('2020-01-15'),
-        emailContacto: 'polanco@redclinicas.mx'
-      },
-      {
-        id: 'suc-002',
         codigo: 'RCA-GDL-01',
         nombre: 'Red de Clínicas - Guadalajara',
         direccion: 'Av. Vallarta 2020, Col. Americana',
@@ -187,6 +168,25 @@ export class InMemorySucursalRepository implements SucursalRepository {
         codigoPostal: '44100',
         telefono: '+523336667890',
         zonaHoraria: 'America/Mexico_City',
+        horarioApertura: '08:00',
+        horarioCierre: '20:00',
+        diasOperacion: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+        consultoriosDisponibles: 5,
+        especialidades: ['Medicina General', 'Pediatría', 'Ginecología', 'Dermatología'],
+        activa: true,
+        fechaApertura: new Date('2020-01-15'),
+        emailContacto: 'guadalajara@redclinicas.mx'
+      },
+      {
+        id: 'suc-002',
+        codigo: 'RCA-CJS-01',
+        nombre: 'Red de Clínicas - Ciudad Juárez',
+        direccion: 'Av. Tecnológico 1200, Centro',
+        ciudad: 'Ciudad Juárez',
+        estado: 'Chihuahua',
+        codigoPostal: '32000',
+        telefono: '+526561234567',
+        zonaHoraria: 'America/Mexico_City',
         horarioApertura: '09:00',
         horarioCierre: '19:00',
         diasOperacion: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'],
@@ -194,18 +194,18 @@ export class InMemorySucursalRepository implements SucursalRepository {
         especialidades: ['Medicina General', 'Pediatría'],
         activa: true,
         fechaApertura: new Date('2021-03-20'),
-        emailContacto: 'guadalajara@redclinicas.mx'
+        emailContacto: 'cdjuarez@redclinicas.mx'
       },
       {
         id: 'suc-003',
-        codigo: 'RCA-MTY-01',
-        nombre: 'Red de Clínicas - Monterrey',
-        direccion: 'Av. Constitución 850, Centro',
-        ciudad: 'Monterrey',
-        estado: 'Nuevo León',
-        codigoPostal: '64000',
-        telefono: '+528112345678',
-        zonaHoraria: 'America/Monterrey',
+        codigo: 'RCA-COB-01',
+        nombre: 'Red de Clínicas - Ciudad Obregón',
+        direccion: 'Av. Miguel Alemán 910, Centro',
+        ciudad: 'Ciudad Obregón',
+        estado: 'Sonora',
+        codigoPostal: '85000',
+        telefono: '+526441234567',
+        zonaHoraria: 'America/Mexico_City',
         horarioApertura: '08:00',
         horarioCierre: '21:00',
         diasOperacion: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
@@ -213,7 +213,7 @@ export class InMemorySucursalRepository implements SucursalRepository {
         especialidades: ['Medicina General', 'Pediatría', 'Oftalmología'],
         activa: true,
         fechaApertura: new Date('2021-06-10'),
-        emailContacto: 'monterrey@redclinicas.mx'
+        emailContacto: 'obregon@redclinicas.mx'
       }
     ];
 

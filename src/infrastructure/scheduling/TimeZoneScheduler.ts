@@ -43,7 +43,7 @@ export class TimeZoneScheduler {
 
   // Zonas horarias comunes en México
   private readonly ZONAS_HORARIAS_MEXICO = {
-    'America/Mexico_City': 'Tiempo del Centro (CDMX, Guadalajara, Monterrey)',
+    'America/Mexico_City': 'Tiempo del Centro (Guadalajara, Ciudad Juárez)',
     'America/Tijuana': 'Tiempo del Pacífico (Tijuana, Mexicali)',
     'America/Hermosillo': 'Tiempo de la Montaña (Hermosillo, Sonora)',
     'America/Cancun': 'Tiempo del Este (Cancún, Quintana Roo)',

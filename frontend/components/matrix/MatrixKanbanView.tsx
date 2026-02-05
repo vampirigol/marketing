@@ -6,7 +6,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { HeatmapAnalysisModal } from './HeatmapAnalysisModal';
 import { ConfirmMoveModal } from './ConfirmMoveModal';
 import { BulkActionsBar } from './BulkActionsBar';
-import { Search, SlidersHorizontal, RefreshCw, ArrowUpRight, ArrowDownRight, Activity, Bell } from 'lucide-react';
+import { Search, SlidersHorizontal, RefreshCw, ArrowUpRight, ArrowDownRight, Activity, Bell, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { useInfiniteScrollKanban } from '@/hooks/useInfiniteScrollKanban';
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, PointerSensor, useSensor, useSensors, closestCorners } from '@dnd-kit/core';
@@ -26,6 +26,7 @@ interface MatrixKanbanViewProps {
   onLoadMore: (options: { status: LeadStatus; page: number; limit: number }) => Promise<{ leads: Lead[]; hasMore: boolean; total: number }>;
   onLeadClick?: (lead: Lead) => void;
   onOpenConversation?: (conversacionId: string) => void;
+  uiVariant?: 'default' | 'bitrix';
 }
 
 interface DashboardStats {
@@ -46,9 +47,15 @@ function MatrixKanbanViewContent({
   onLoadMore,
   onLeadClick,
   onOpenConversation,
+  uiVariant = 'default',
 }: MatrixKanbanViewProps) {
+  const isBitrix = uiVariant === 'bitrix';
+  const websocketEnabled =
+    Boolean(process.env.NEXT_PUBLIC_WEBSOCKET_URL) &&
+    process.env.NEXT_PUBLIC_WEBSOCKET_URL !== 'disabled';
   const [busqueda, setBusqueda] = useState('');
   const [filtroCanal, setFiltroCanal] = useState<'todos' | 'whatsapp' | 'facebook' | 'instagram'>('todos');
+  const [isChannelMenuOpen, setIsChannelMenuOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'compact' | 'expanded'>('expanded');
@@ -86,6 +93,7 @@ function MatrixKanbanViewContent({
     loadMoreForColumn,
     moveLead: moveLeadInState,
     updateLead,
+    removeLead,
   } = useInfiniteScrollKanban({
     initialLimit: 20,
     loadMoreLimit: 10,
@@ -233,6 +241,68 @@ function MatrixKanbanViewContent({
     return { actual, anterior };
   }, [columnsState, busqueda, filtroCanal]);
 
+  const listasInteligentes = useMemo(() => {
+    const allLeads = Object.values(columnsState).flatMap((col) => col.leads);
+    let leadsFiltrados = allLeads;
+
+    if (busqueda) {
+      const searchLower = busqueda.toLowerCase();
+      leadsFiltrados = leadsFiltrados.filter(
+        (lead) =>
+          lead.nombre.toLowerCase().includes(searchLower) ||
+          lead.email?.toLowerCase().includes(searchLower) ||
+          lead.telefono?.includes(busqueda)
+      );
+    }
+
+    if (filtroCanal !== 'todos') {
+      leadsFiltrados = leadsFiltrados.filter((lead) => lead.canal === filtroCanal);
+    }
+
+    const ahora = new Date();
+    const sinRespuesta = leadsFiltrados.filter((lead) => {
+      const referencia = lead.fechaUltimoContacto || lead.fechaActualizacion;
+      const diff = ahora.getTime() - referencia.getTime();
+      return diff > 7 * 24 * 60 * 60 * 1000;
+    }).length;
+
+    const contarEtiqueta = (tag: string) =>
+      leadsFiltrados.filter((lead) => lead.etiquetas?.includes(tag)).length;
+
+    return [
+      {
+        title: 'Inasistencia',
+        count: contarEtiqueta('Inasistencia'),
+        helper: 'No llegaron y requieren contacto',
+        tone: 'text-rose-700 bg-rose-50 border-rose-200',
+      },
+      {
+        title: 'Reagendar',
+        count: contarEtiqueta('Reagendar'),
+        helper: 'Solicitar nueva fecha',
+        tone: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+      },
+      {
+        title: 'En espera',
+        count: contarEtiqueta('En espera'),
+        helper: 'Pendiente de confirmación',
+        tone: 'text-amber-700 bg-amber-50 border-amber-200',
+      },
+      {
+        title: 'Perdido',
+        count: contarEtiqueta('Perdido'),
+        helper: '7 días sin respuesta',
+        tone: 'text-slate-700 bg-slate-100 border-slate-200',
+      },
+      {
+        title: 'Sin respuesta',
+        count: sinRespuesta,
+        helper: 'Requiere reactivación',
+        tone: 'text-gray-700 bg-gray-100 border-gray-200',
+      },
+    ];
+  }, [columnsState, busqueda, filtroCanal]);
+
   const statsActual = liveStats ?? estadisticas.actual;
   const statsAnterior = livePrevStats ?? estadisticas.anterior;
 
@@ -276,7 +346,12 @@ function MatrixKanbanViewContent({
 
   // WebSocket: métricas en vivo
   useEffect(() => {
-    const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'http://localhost:3001';
+    const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+    if (!wsUrl || wsUrl === 'disabled') {
+      setIsLiveConnected(false);
+      return;
+    }
+
     const socket: Socket = io(wsUrl, { transports: ['websocket'] });
 
     socket.on('connect', () => {
@@ -419,26 +494,51 @@ function MatrixKanbanViewContent({
   // Handler para acciones masivas
   const handleBulkAction = useCallback((action: string, data?: Record<string, unknown>) => {
     let message = '';
+    const leadsSeleccionados = selectedLeadsArray;
     switch (action) {
       case 'move':
         message = data ? `${data.count} leads movidos exitosamente` : 'Leads movidos';
+        if (data?.targetStatus) {
+          leadsSeleccionados.forEach((lead) => {
+            if (lead.status !== data.targetStatus) {
+              moveLeadInState(lead.id, lead.status, data.targetStatus as LeadStatus);
+            }
+          });
+        }
         break;
       case 'assign':
         message = data ? `${data.count} leads asignados a ${data.vendedor}` : 'Leads asignados';
+        if (data?.vendedor) {
+          leadsSeleccionados.forEach((lead) => {
+            updateLead(lead.status, lead.id, {
+              asignadoA: data.vendedor as string,
+              fechaActualizacion: new Date(),
+            });
+          });
+        }
         break;
       case 'tag':
         message = data ? `Etiqueta "${data.tag}" agregada a ${data.count} leads` : 'Etiqueta agregada';
+        if (data?.tag) {
+          leadsSeleccionados.forEach((lead) => {
+            const etiquetas = Array.from(new Set([...(lead.etiquetas || []), data.tag as string]));
+            updateLead(lead.status, lead.id, { etiquetas });
+          });
+        }
         break;
       case 'export':
         message = data ? `${data.count} leads exportados a CSV` : 'Leads exportados';
         break;
       case 'delete':
         message = data ? `${data.count} leads eliminados` : 'Leads eliminados';
+        leadsSeleccionados.forEach((lead) => {
+          removeLead(lead.status, lead.id);
+        });
         break;
     }
     setBulkActionNotification({ message, type: 'success' });
     setTimeout(() => setBulkActionNotification(null), 3000);
-  }, []);
+  }, [selectedLeadsArray, moveLeadInState, updateLead, removeLead]);
 
   const formatearValor = (valor: number) => {
     return new Intl.NumberFormat('es-MX', {
@@ -480,281 +580,318 @@ function MatrixKanbanViewContent({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex flex-col h-full bg-gray-50">
+      <div className={`flex flex-col h-full ${isBitrix ? 'bg-gradient-to-br from-slate-50 via-white to-slate-100' : 'bg-gray-50'}`}>
       {/* Header con métricas y controles */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        {/* Métricas resumidas */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-8">
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl font-bold text-gray-900">{statsActual.totalLeads}</div>
-                <div className="text-sm text-gray-500">Leads (Mes)</div>
+      <div
+        className={`${
+          isBitrix
+            ? 'bg-white/90 border border-slate-200 rounded-2xl shadow-sm mx-6 mt-4 mb-4'
+            : 'bg-white border-b border-gray-200'
+        } px-6 py-4`}
+      >
+        <div className="space-y-4">
+          {/* Métricas resumidas */}
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="text-2xl font-bold text-gray-900">{statsActual.totalLeads}</div>
+                  <div className="text-sm text-gray-500">Leads (Mes)</div>
+                </div>
+                {(() => {
+                  const cambio = calcularCambio(statsActual.totalLeads, statsAnterior.totalLeads);
+                  const color = cambio.isNeutral
+                    ? 'text-gray-400'
+                    : cambio.isPositive
+                    ? 'text-emerald-600'
+                    : 'text-red-600';
+                  const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
+                  return (
+                    <div className={`flex items-center gap-1 text-xs ${color}`}>
+                      {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
+                      <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
+                    </div>
+                  );
+                })()}
               </div>
-              {(() => {
-                const cambio = calcularCambio(statsActual.totalLeads, statsAnterior.totalLeads);
-                const color = cambio.isNeutral
-                  ? 'text-gray-400'
-                  : cambio.isPositive
-                  ? 'text-emerald-600'
-                  : 'text-red-600';
-                const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
-                return (
-                  <div className={`flex items-center gap-1 text-xs ${color}`}>
-                    {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
-                    <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
-                  </div>
-                );
-              })()}
+
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="text-2xl font-bold text-purple-600">{formatearValor(statsActual.valorTotal)}</div>
+                  <div className="text-sm text-gray-500">Valor (Mes)</div>
+                </div>
+                {(() => {
+                  const cambio = calcularCambio(statsActual.valorTotal, statsAnterior.valorTotal);
+                  const color = cambio.isNeutral
+                    ? 'text-gray-400'
+                    : cambio.isPositive
+                    ? 'text-emerald-600'
+                    : 'text-red-600';
+                  const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
+                  return (
+                    <div className={`flex items-center gap-1 text-xs ${color}`}>
+                      {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
+                      <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="text-2xl font-bold text-green-600">{statsActual.nuevosHoy}</div>
+                  <div className="text-sm text-gray-500">Nuevos Hoy</div>
+                </div>
+                {(() => {
+                  const cambio = calcularCambio(statsActual.nuevosHoy, statsAnterior.nuevosHoy);
+                  const color = cambio.isNeutral
+                    ? 'text-gray-400'
+                    : cambio.isPositive
+                    ? 'text-emerald-600'
+                    : 'text-red-600';
+                  const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
+                  return (
+                    <div className={`flex items-center gap-1 text-xs ${color}`}>
+                      {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
+                      <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="text-2xl font-bold text-blue-600">{statsActual.calificados}</div>
+                  <div className="text-sm text-gray-500">Calificados (Mes)</div>
+                </div>
+                {(() => {
+                  const cambio = calcularCambio(statsActual.calificados, statsAnterior.calificados);
+                  const color = cambio.isNeutral
+                    ? 'text-gray-400'
+                    : cambio.isPositive
+                    ? 'text-emerald-600'
+                    : 'text-red-600';
+                  const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
+                  return (
+                    <div className={`flex items-center gap-1 text-xs ${color}`}>
+                      {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
+                      <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
 
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl font-bold text-purple-600">{formatearValor(statsActual.valorTotal)}</div>
-                <div className="text-sm text-gray-500">Valor (Mes)</div>
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-slate-200 bg-white px-3 py-2">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <div className="text-2xl font-bold text-yellow-600">{statsActual.dealsActivos}</div>
+                  <div className="text-sm text-gray-500">Deals (Mes)</div>
+                </div>
+                {(() => {
+                  const cambio = calcularCambio(statsActual.dealsActivos, statsAnterior.dealsActivos);
+                  const color = cambio.isNeutral
+                    ? 'text-gray-400'
+                    : cambio.isPositive
+                    ? 'text-emerald-600'
+                    : 'text-red-600';
+                  const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
+                  return (
+                    <div className={`flex items-center gap-1 text-xs ${color}`}>
+                      {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
+                      <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
+                    </div>
+                  );
+                })()}
               </div>
-              {(() => {
-                const cambio = calcularCambio(statsActual.valorTotal, statsAnterior.valorTotal);
-                const color = cambio.isNeutral
-                  ? 'text-gray-400'
-                  : cambio.isPositive
-                  ? 'text-emerald-600'
-                  : 'text-red-600';
-                const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
-                return (
-                  <div className={`flex items-center gap-1 text-xs ${color}`}>
-                    {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
-                    <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl font-bold text-green-600">{statsActual.nuevosHoy}</div>
-                <div className="text-sm text-gray-500">Nuevos Hoy</div>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Activity
+                  className={`w-4 h-4 ${
+                    !websocketEnabled
+                      ? 'text-amber-500'
+                      : isLiveConnected
+                      ? 'text-emerald-500'
+                      : 'text-gray-300'
+                  }`}
+                />
+                <span>
+                  {!websocketEnabled
+                    ? 'WebSocket deshabilitado'
+                    : isLiveConnected
+                    ? 'En vivo (WebSocket)'
+                    : 'Sin conexión'}
+                </span>
               </div>
-              {(() => {
-                const cambio = calcularCambio(statsActual.nuevosHoy, statsAnterior.nuevosHoy);
-                const color = cambio.isNeutral
-                  ? 'text-gray-400'
-                  : cambio.isPositive
-                  ? 'text-emerald-600'
-                  : 'text-red-600';
-                const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
-                return (
-                  <div className={`flex items-center gap-1 text-xs ${color}`}>
-                    {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
-                    <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl font-bold text-blue-600">{statsActual.calificados}</div>
-                <div className="text-sm text-gray-500">Calificados (Mes)</div>
-              </div>
-              {(() => {
-                const cambio = calcularCambio(statsActual.calificados, statsAnterior.calificados);
-                const color = cambio.isNeutral
-                  ? 'text-gray-400'
-                  : cambio.isPositive
-                  ? 'text-emerald-600'
-                  : 'text-red-600';
-                const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
-                return (
-                  <div className={`flex items-center gap-1 text-xs ${color}`}>
-                    {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
-                    <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <div className="text-2xl font-bold text-yellow-600">{statsActual.dealsActivos}</div>
-                <div className="text-sm text-gray-500">Deals (Mes)</div>
-              </div>
-              {(() => {
-                const cambio = calcularCambio(statsActual.dealsActivos, statsAnterior.dealsActivos);
-                const color = cambio.isNeutral
-                  ? 'text-gray-400'
-                  : cambio.isPositive
-                  ? 'text-emerald-600'
-                  : 'text-red-600';
-                const Icon = cambio.isPositive ? ArrowUpRight : ArrowDownRight;
-                return (
-                  <div className={`flex items-center gap-1 text-xs ${color}`}>
-                    {!cambio.isNeutral && <Icon className="w-3.5 h-3.5" />}
-                    <span>{formatearPorcentaje(cambio.percent)} vs mes anterior</span>
-                  </div>
-                );
-              })()}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <Activity className={`w-4 h-4 ${isLiveConnected ? 'text-emerald-500' : 'text-gray-300'}`} />
-            <span>{isLiveConnected ? 'En vivo (WebSocket)' : 'Sin conexión'}</span>
-          </div>
-        </div>
-
-        {/* Controles de búsqueda y filtros */}
-        <div className="flex items-center justify-between">
-          {/* Búsqueda */}
-          <div className="flex items-center gap-4 flex-1">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Buscar leads por nombre, email o teléfono..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="pl-10 w-full"
-              />
-            </div>
-
-            {/* Filtro de canal */}
-            <div className="flex items-center gap-2 border border-gray-300 rounded-lg p-1">
-              <button
-                onClick={() => setFiltroCanal('todos')}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  filtroCanal === 'todos'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                onClick={() => setFiltroCanal('whatsapp')}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  filtroCanal === 'whatsapp'
-                    ? 'bg-green-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                WhatsApp
-              </button>
-              <button
-                onClick={() => setFiltroCanal('facebook')}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  filtroCanal === 'facebook'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Facebook
-              </button>
-              <button
-                onClick={() => setFiltroCanal('instagram')}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  filtroCanal === 'instagram'
-                    ? 'bg-pink-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Instagram
-              </button>
+          {/* Listas inteligentes */}
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className={isBitrix ? 'flex gap-3 overflow-x-auto pb-1' : 'grid grid-cols-2 lg:grid-cols-5 gap-3'}>
+              {listasInteligentes.map((item) => (
+                <div
+                  key={item.title}
+                  className={`rounded-lg border px-3 py-2 ${item.tone} ${isBitrix ? 'min-w-[170px]' : ''}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold">{item.title}</p>
+                    <span className="text-base font-bold">{item.count}</span>
+                  </div>
+                  <p className="text-[11px] mt-1 opacity-80">{item.helper}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Botón de configuración y refresh */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefreshAll}
-              disabled={isRefreshing}
-              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-              title="Refrescar datos"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-            
-            <div className="flex items-center gap-2 border border-gray-300 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('compact')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  viewMode === 'compact'
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Compacta
-              </button>
-              <button
-                onClick={() => setViewMode('expanded')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  viewMode === 'expanded'
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Expandida
-              </button>
+          {/* Controles de búsqueda y filtros */}
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              {/* Búsqueda */}
+              <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+                <div className="relative flex-1 min-w-[220px] max-w-md">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar leads por nombre, email o teléfono..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="pl-10 w-full bg-white"
+                  />
+                </div>
+
+                {/* Filtro de canal */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsChannelMenuOpen((prev) => !prev)}
+                    className={`flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium transition-colors ${
+                      filtroCanal === 'todos'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {filtroCanal === 'todos'
+                      ? 'Todos'
+                      : filtroCanal === 'whatsapp'
+                      ? 'WhatsApp'
+                      : filtroCanal === 'facebook'
+                      ? 'Facebook'
+                      : 'Instagram'}
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+
+                  {isChannelMenuOpen && (
+                    <div className="absolute left-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
+                      <button
+                        onClick={() => {
+                          setFiltroCanal('todos');
+                          setIsChannelMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm ${
+                          filtroCanal === 'todos' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        Todos
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFiltroCanal('whatsapp');
+                          setIsChannelMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm ${
+                          filtroCanal === 'whatsapp' ? 'bg-green-50 text-green-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        WhatsApp
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFiltroCanal('facebook');
+                          setIsChannelMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm ${
+                          filtroCanal === 'facebook' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        Facebook
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFiltroCanal('instagram');
+                          setIsChannelMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm ${
+                          filtroCanal === 'instagram' ? 'bg-pink-50 text-pink-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        Instagram
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Botón de configuración y refresh */}
+              <div className="flex items-center gap-2 flex-wrap justify-start">
+                <button
+                  onClick={handleRefreshAll}
+                  disabled={isRefreshing}
+                  className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  title="Refrescar datos"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+                
+                <div className="flex items-center gap-2 border border-gray-300 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('compact')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      viewMode === 'compact'
+                        ? 'bg-gray-900 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Compacta
+                  </button>
+                  <button
+                    onClick={() => setViewMode('expanded')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      viewMode === 'expanded'
+                        ? 'bg-gray-900 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Expandida
+                  </button>
+                </div>
+
+
+                <button
+                  onClick={() => setIsColumnSettingsOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Configurar columnas"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span className="text-sm font-medium">Columnas</span>
+                </button>
+
+                <button
+                  onClick={() => setIsCustomFieldsOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Configurar campos"
+                >
+                  <span className="text-sm font-medium">Campos</span>
+                </button>
+
+                <button
+                  onClick={() => setIsAlertSettingsOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Configurar alertas"
+                >
+                  <Bell className="w-4 h-4" />
+                  <span className="text-sm font-medium">Alertas</span>
+                </button>
+              </div>
             </div>
-
-            <div className="flex items-center gap-2 border border-gray-300 rounded-lg p-1">
-              <button
-                onClick={() => setDensity('comfortable')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  density === 'comfortable'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                1x
-              </button>
-              <button
-                onClick={() => setDensity('compact')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  density === 'compact'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                2x
-              </button>
-              <button
-                onClick={() => setDensity('dense')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  density === 'dense'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                3x
-              </button>
-            </div>
-
-            <button
-              onClick={() => setIsColumnSettingsOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              title="Configurar columnas"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span className="text-sm font-medium">Columnas</span>
-            </button>
-
-            <button
-              onClick={() => setIsCustomFieldsOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              title="Configurar campos"
-            >
-              <span className="text-sm font-medium">Campos</span>
-            </button>
-
-            <button
-              onClick={() => setIsAlertSettingsOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              title="Configurar alertas"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="text-sm font-medium">Alertas</span>
-            </button>
           </div>
         </div>
       </div>

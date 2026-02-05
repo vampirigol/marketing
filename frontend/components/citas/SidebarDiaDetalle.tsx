@@ -25,11 +25,16 @@ export function SidebarDiaDetalle({ fecha, citas, onClose, onCitaClick }: Sideba
       case 'Confirmada':
         return 'bg-green-50 border-green-200 text-green-900';
       case 'Agendada':
+      case 'Pendiente_Confirmacion':
+      case 'Reagendada':
         return 'bg-orange-50 border-orange-200 text-orange-900';
+      case 'En_Espera':
+        return 'bg-blue-50 border-blue-200 text-blue-900';
       case 'Cancelada':
         return 'bg-red-50 border-red-200 text-red-900';
       case 'Finalizada':
         return 'bg-blue-50 border-blue-200 text-blue-900';
+      case 'Inasistencia':
       case 'No_Asistio':
         return 'bg-red-50 border-red-200 text-red-900';
       default:
@@ -39,7 +44,11 @@ export function SidebarDiaDetalle({ fecha, citas, onClose, onCitaClick }: Sideba
 
   const estadisticas = {
     confirmadas: citasOrdenadas.filter(c => c.estado === 'Confirmada').length,
-    pendientes: citasOrdenadas.filter(c => c.estado === 'Agendada').length,
+    pendientes: citasOrdenadas.filter(c =>
+      c.estado === 'Agendada' ||
+      c.estado === 'Pendiente_Confirmacion' ||
+      c.estado === 'Reagendada'
+    ).length,
     ingresos: citasOrdenadas.reduce((sum, c) => sum + (c.montoAbonado || 0), 0)
   };
 
@@ -114,10 +123,13 @@ export function SidebarDiaDetalle({ fecha, citas, onClose, onCitaClick }: Sideba
                   <span className={`
                     text-xs font-bold px-2 py-1 rounded-lg
                     ${cita.estado === 'Confirmada' ? 'bg-green-600 text-white' :
-                      cita.estado === 'Agendada' ? 'bg-orange-600 text-white' :
-                      'bg-red-600 text-white'}
+                      cita.estado === 'Agendada' || cita.estado === 'Pendiente_Confirmacion' || cita.estado === 'Reagendada'
+                        ? 'bg-orange-600 text-white'
+                        : cita.estado === 'En_Espera'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-red-600 text-white'}
                   `}>
-                    {cita.estado}
+                    {cita.estado.replace('_', ' ')}
                   </span>
                 </div>
 

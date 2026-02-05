@@ -120,12 +120,17 @@ export function DashboardDoctor({
 
   // Estadísticas rápidas
   const estadisticas = useMemo(() => {
-    const pendientesConfirmacion = citasHoy.filter(c => 
-      c.estado === 'Agendada'
+    const pendientesConfirmacion = citasHoy.filter(c =>
+      c.estado === 'Agendada' ||
+      c.estado === 'Pendiente_Confirmacion' ||
+      c.estado === 'Reagendada'
     ).length;
     const confirmadas = citasHoy.filter(c => c.estado === 'Confirmada').length;
     const completadas = citasDoctor.filter(c => c.estado === 'Finalizada').length;
-    const noAsistio = citasDoctor.filter(c => c.estado === 'No_Asistio').length;
+    const noAsistio = citasDoctor.filter(c =>
+      c.estado === 'Inasistencia' ||
+      c.estado === 'No_Asistio'
+    ).length;
 
     return {
       citasHoy: citasHoy.length,
@@ -170,12 +175,14 @@ export function DashboardDoctor({
       case 'Confirmada':
         return 'text-green-700 bg-green-50 border-green-200';
       case 'Agendada':
-      case 'Pendiente':
+      case 'Pendiente_Confirmacion':
+      case 'Reagendada':
         return 'text-orange-700 bg-orange-50 border-orange-200';
       case 'Cancelada':
         return 'text-red-700 bg-red-50 border-red-200';
       case 'Finalizada':
         return 'text-blue-700 bg-blue-50 border-blue-200';
+      case 'Inasistencia':
       case 'No_Asistio':
         return 'text-red-700 bg-red-50 border-red-200';
       default:

@@ -35,7 +35,7 @@ export function CorteModal({ corteId, onClose }: CorteModalProps) {
   // Datos de ejemplo - en producción vendrían del API
   const corte = {
     id: corteId,
-    sucursal: 'CDMX Centro',
+    sucursal: 'Guadalajara',
     fecha: '02 Feb 2026',
     turno: 'Completo',
     responsable: 'Yaretzi Ramírez',

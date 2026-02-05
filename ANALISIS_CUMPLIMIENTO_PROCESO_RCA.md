@@ -20,7 +20,7 @@ El sistema CRM cumple con la mayoría de los criterios del proceso de atención 
 
 | Criterio | Estado | Implementación |
 |----------|--------|----------------|
-| **Selecciona sucursal** | ✅ CUMPLE | [CatalogoForm.tsx](frontend/components/citas/CatalogoForm.tsx) - 3 sucursales (CDMX, GDL, MTY) |
+| **Selecciona sucursal** | ✅ CUMPLE | [CatalogoForm.tsx](frontend/components/citas/CatalogoForm.tsx) - 3 sucursales (Guadalajara, Ciudad Juárez, Ciudad Obregón) |
 | **Selecciona especialidad/Doctor** | ✅ CUMPLE | [CatalogoController.ts](src/api/controllers/CatalogoController.ts) - 4 especialidades, doctores filtrados por sucursal |
 | **Selecciona Servicio** | ✅ CUMPLE | [Servicios con precios y promociones](src/api/controllers/CatalogoController.ts#L150-180) |
 | **Junto con promociones** | ✅ CUMPLE | Sistema de promociones activas con códigos (MES_SALUD_2026, PRIMERA_VEZ_2026) |

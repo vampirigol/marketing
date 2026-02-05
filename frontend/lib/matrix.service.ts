@@ -586,7 +586,7 @@ export function obtenerConversacionesSimuladas(): Promise<Conversacion[]> {
       fechaUltimoMensaje: new Date(Date.now() - 90 * 60000),
       estado: 'cerrada',
       mensajesNoLeidos: 0,
-      etiquetas: ['Promoción', 'Seguimiento'],
+      etiquetas: ['Promoción', 'Seguimiento', 'Confirmada'],
       enLinea: false
     },
     {
@@ -612,7 +612,7 @@ export function obtenerConversacionesSimuladas(): Promise<Conversacion[]> {
       fechaUltimoMensaje: new Date(Date.now() - 180 * 60000),
       estado: 'activa',
       mensajesNoLeidos: 4,
-      etiquetas: ['Urgente', 'Emergencia'],
+      etiquetas: ['Urgente', 'Emergencia', 'En espera'],
       enLinea: false
     },
     {
@@ -625,7 +625,7 @@ export function obtenerConversacionesSimuladas(): Promise<Conversacion[]> {
       fechaUltimoMensaje: new Date(Date.now() - 240 * 60000),
       estado: 'pendiente',
       mensajesNoLeidos: 2,
-      etiquetas: ['Promoción', 'Seguros'],
+      etiquetas: ['Promoción', 'Seguros', 'Inasistencia'],
       enLinea: true
     },
     {
@@ -638,7 +638,7 @@ export function obtenerConversacionesSimuladas(): Promise<Conversacion[]> {
       fechaUltimoMensaje: new Date(Date.now() - 300 * 60000),
       estado: 'cerrada',
       mensajesNoLeidos: 0,
-      etiquetas: ['Confirmada'],
+      etiquetas: ['Confirmada', 'Atendido'],
       enLinea: false
     },
     {
@@ -651,7 +651,7 @@ export function obtenerConversacionesSimuladas(): Promise<Conversacion[]> {
       fechaUltimoMensaje: new Date(Date.now() - 360 * 60000),
       estado: 'activa',
       mensajesNoLeidos: 1,
-      etiquetas: ['Nueva', 'Ubicación'],
+      etiquetas: ['Nueva', 'Ubicación', 'Reagendar'],
       enLinea: true
     },
     {
@@ -664,7 +664,7 @@ export function obtenerConversacionesSimuladas(): Promise<Conversacion[]> {
       fechaUltimoMensaje: new Date(Date.now() - 420 * 60000),
       estado: 'activa',
       mensajesNoLeidos: 0,
-      etiquetas: ['Negociación', 'Paquete'],
+      etiquetas: ['Negociación', 'Paquete', 'Perdido'],
       enLinea: true
     }
   ];

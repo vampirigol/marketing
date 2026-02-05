@@ -33,9 +33,16 @@ export function EstadisticasMes({ citas, fechaSeleccionada }: EstadisticasMesPro
     // Estadísticas del mes actual
     const total = citasMes.length;
     const confirmadas = citasMes.filter(c => c.estado === 'Confirmada').length;
-    const pendientes = citasMes.filter(c => c.estado === 'Agendada').length;
+    const pendientes = citasMes.filter(c =>
+      c.estado === 'Agendada' ||
+      c.estado === 'Pendiente_Confirmacion' ||
+      c.estado === 'Reagendada'
+    ).length;
     const canceladas = citasMes.filter(c => c.estado === 'Cancelada').length;
-    const noAsistio = citasMes.filter(c => c.estado === 'No_Asistio').length;
+    const noAsistio = citasMes.filter(c =>
+      c.estado === 'Inasistencia' ||
+      c.estado === 'No_Asistio'
+    ).length;
     const finalizadas = citasMes.filter(c => c.estado === 'Finalizada').length;
     
     const ingresos = citasMes.reduce((sum, c) => sum + (c.montoAbonado || 0), 0);

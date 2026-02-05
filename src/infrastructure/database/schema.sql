@@ -380,9 +380,9 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- Sucursal de ejemplo
 INSERT INTO sucursales (codigo, nombre, direccion, ciudad, estado, telefono, especialidades)
 VALUES 
-  ('RCA-001', 'CDMX Centro', 'Av. Insurgentes Sur 1234', 'Ciudad de México', 'CDMX', '5551234567', ARRAY['Medicina General', 'Odontología', 'Pediatría']),
-  ('RCA-002', 'Guadalajara Norte', 'Av. Américas 5678', 'Guadalajara', 'Jalisco', '3331234567', ARRAY['Medicina General', 'Ginecología']),
-  ('RCA-003', 'Monterrey Centro', 'Av. Constitución 910', 'Monterrey', 'Nuevo León', '8181234567', ARRAY['Medicina General', 'Pediatría']);
+  ('RCA-001', 'Guadalajara', 'Av. Américas 5678', 'Guadalajara', 'Jalisco', '3331234567', ARRAY['Medicina General', 'Odontología', 'Pediatría']),
+  ('RCA-002', 'Ciudad Juárez', 'Av. Tecnológico 1200', 'Ciudad Juárez', 'Chihuahua', '6561234567', ARRAY['Medicina General', 'Ginecología']),
+  ('RCA-003', 'Ciudad Obregón', 'Av. Miguel Alemán 910', 'Ciudad Obregón', 'Sonora', '6441234567', ARRAY['Medicina General', 'Pediatría']);
 
 -- Usuario administrador inicial (password: admin123 - CAMBIAR EN PRODUCCIÓN)
 -- Hash generado con bcrypt, rounds: 10

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Doctor, DOCTORES } from '@/lib/doctores-data';
 import { Check, Users, MapPin, Stethoscope } from 'lucide-react';
 
@@ -8,16 +8,29 @@ interface DoctorSelectorProps {
   selectedDoctores: string[];
   onChange: (doctorIds: string[]) => void;
   multiSelect?: boolean;
+  fixedSucursal?: string;
 }
 
-export function DoctorSelector({ selectedDoctores, onChange, multiSelect = true }: DoctorSelectorProps) {
-  const [filterSucursal, setFilterSucursal] = useState<string>('all');
+export function DoctorSelector({
+  selectedDoctores,
+  onChange,
+  multiSelect = true,
+  fixedSucursal,
+}: DoctorSelectorProps) {
+  const [filterSucursal, setFilterSucursal] = useState<string>(fixedSucursal || 'all');
   const [filterEspecialidad, setFilterEspecialidad] = useState<string>('all');
+
+  useEffect(() => {
+    if (fixedSucursal) {
+      setFilterSucursal(fixedSucursal);
+    }
+  }, [fixedSucursal]);
 
   const sucursales = Array.from(new Set(DOCTORES.map(d => d.sucursal))).sort();
   const especialidades = Array.from(new Set(DOCTORES.map(d => d.especialidad))).sort();
 
   const doctoresFiltrados = DOCTORES.filter(doctor => {
+    if (fixedSucursal && doctor.sucursal !== fixedSucursal) return false;
     if (filterSucursal !== 'all' && doctor.sucursal !== filterSucursal) return false;
     if (filterEspecialidad !== 'all' && doctor.especialidad !== filterEspecialidad) return false;
     return true;
@@ -75,6 +88,7 @@ export function DoctorSelector({ selectedDoctores, onChange, multiSelect = true 
             <select
               value={filterSucursal}
               onChange={(e) => setFilterSucursal(e.target.value)}
+              disabled={Boolean(fixedSucursal)}
               className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             >
               <option value="all">Todas las sucursales</option>

@@ -46,7 +46,19 @@ export interface Cita {
   especialidad: string;
   medicoAsignado?: string;
   doctor?: string;
-  estado: 'Agendada' | 'Confirmada' | 'Llegó' | 'En_Atencion' | 'Finalizada' | 'Cancelada' | 'No_Asistio';
+  estado: 
+    | 'Agendada'
+    | 'Pendiente_Confirmacion'
+    | 'Confirmada'
+    | 'Reagendada'
+    | 'Llegó'
+    | 'En_Atencion'
+    | 'En_Espera'
+    | 'Finalizada'
+    | 'Cancelada'
+    | 'Inasistencia'
+    | 'Perdido'
+    | 'No_Asistio';
   motivoCancelacion?: string;
   motivo?: string;
   esPromocion: boolean;

@@ -20,21 +20,46 @@ export function CitaCard({ cita, onClick, vista = 'lista', onQuickConfirm, onQui
   
   const getEstadoColor = (estado: Cita['estado']) => {
     const colores = {
-      'Agendada': 'bg-blue-100 text-blue-700 border-blue-200',
-      'Confirmada': 'bg-green-100 text-green-700 border-green-200',
-      'Llegó': 'bg-purple-100 text-purple-700 border-purple-200',
-      'En_Atencion': 'bg-orange-100 text-orange-700 border-orange-200',
-      'Finalizada': 'bg-gray-100 text-gray-700 border-gray-200',
-      'Cancelada': 'bg-red-100 text-red-700 border-red-200',
-      'No_Asistio': 'bg-red-100 text-red-700 border-red-200'
+      Agendada: 'bg-blue-100 text-blue-700 border-blue-200',
+      Pendiente_Confirmacion: 'bg-amber-100 text-amber-700 border-amber-200',
+      Confirmada: 'bg-green-100 text-green-700 border-green-200',
+      Reagendada: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+      Llegó: 'bg-purple-100 text-purple-700 border-purple-200',
+      En_Atencion: 'bg-orange-100 text-orange-700 border-orange-200',
+      En_Espera: 'bg-sky-100 text-sky-700 border-sky-200',
+      Finalizada: 'bg-gray-100 text-gray-700 border-gray-200',
+      Cancelada: 'bg-red-100 text-red-700 border-red-200',
+      Inasistencia: 'bg-rose-100 text-rose-700 border-rose-200',
+      Perdido: 'bg-slate-100 text-slate-700 border-slate-200',
+      No_Asistio: 'bg-rose-100 text-rose-700 border-rose-200'
     };
     return colores[estado] || 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
   const getEstadoIcon = (estado: Cita['estado']) => {
     if (estado === 'Confirmada') return <CheckCircle2 className="w-3 h-3" />;
-    if (estado === 'Cancelada' || estado === 'No_Asistio') return <AlertCircle className="w-3 h-3" />;
+    if (estado === 'Cancelada' || estado === 'Inasistencia' || estado === 'No_Asistio' || estado === 'Perdido') {
+      return <AlertCircle className="w-3 h-3" />;
+    }
     return <Clock className="w-3 h-3" />;
+  };
+
+  const getEstadoLabel = (estado: Cita['estado']) => {
+    const labels: Record<Cita['estado'], string> = {
+      Agendada: 'Agendada',
+      Pendiente_Confirmacion: 'Pendiente',
+      Confirmada: 'Confirmada',
+      Reagendada: 'Reagendada',
+      Llegó: 'Llegó',
+      En_Atencion: 'En atención',
+      En_Espera: 'En espera',
+      Finalizada: 'Finalizada',
+      Cancelada: 'Cancelada',
+      Inasistencia: 'Inasistencia',
+      Perdido: 'Perdido',
+      No_Asistio: 'No asistió'
+    };
+    return labels[estado] || estado.replace('_', ' ');
   };
 
   const estadoColor = getEstadoColor(cita.estado);
@@ -63,7 +88,7 @@ export function CitaCard({ cita, onClick, vista = 'lista', onQuickConfirm, onQui
       {/* Quick Actions - Aparecen en hover */}
       {isHovered && vista === 'lista' && (
         <div className="absolute -top-2 right-2 flex items-center gap-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1 z-10 animate-in fade-in slide-in-from-top-2 duration-200">
-          {cita.estado === 'Agendada' && onQuickConfirm && (
+          {(['Agendada', 'Pendiente_Confirmacion', 'Reagendada'] as Cita['estado'][]).includes(cita.estado) && onQuickConfirm && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -127,9 +152,7 @@ export function CitaCard({ cita, onClick, vista = 'lista', onQuickConfirm, onQui
         </div>
         <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${estadoColor} ${cita.estado === 'En_Atencion' ? 'animate-pulse' : ''}`}>
           {estadoIcon}
-          <span className="font-medium">
-            {cita.estado.replace('_', ' ')}
-          </span>
+          <span className="font-medium">{getEstadoLabel(cita.estado)}</span>
         </div>
       </div>
 
@@ -160,7 +183,7 @@ export function CitaCard({ cita, onClick, vista = 'lista', onQuickConfirm, onQui
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <MapPin className="w-4 h-4 text-gray-400" />
-            <span className="text-xs">{cita.sucursalNombre || 'CDMX Centro'}</span>
+            <span className="text-xs">{cita.sucursalNombre || 'Guadalajara'}</span>
           </div>
           
           {cita.saldoPendiente > 0 && (

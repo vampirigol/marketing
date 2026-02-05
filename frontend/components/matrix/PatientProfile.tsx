@@ -49,8 +49,8 @@ export function PatientProfile({
     tipoAfiliacion: 'Titular' as const,
     calle: 'Av. Insurgentes Sur 1234',
     colonia: 'Del Valle',
-    ciudad: 'Ciudad de México',
-    estado: 'CDMX',
+    ciudad: 'Guadalajara',
+    estado: 'Jalisco',
     codigoPostal: '03100',
     alergias: 'Penicilina',
     padecimientos: '',
@@ -79,6 +79,39 @@ export function PatientProfile({
       esPromocion: false
     }
   ] : [];
+
+  const segmentoPaciente =
+    historialCitas.length === 0
+      ? 'Nunca atendido'
+      : historialCitas.length === 1
+      ? 'Atendido 1 vez'
+      : 'Múltiples asistencias';
+
+  const timelineContacto = pacienteId ? [
+    {
+      id: 't1',
+      titulo: 'Confirmación T-24h',
+      canal: 'WhatsApp',
+      fecha: new Date(Date.now() - 26 * 60 * 60 * 1000),
+      estado: 'Enviado',
+    },
+    {
+      id: 't2',
+      titulo: 'Recordatorio T-3h',
+      canal: 'SMS',
+      fecha: new Date(Date.now() - 4 * 60 * 60 * 1000),
+      estado: 'Entregado',
+    },
+    {
+      id: 't3',
+      titulo: 'Check-in recepción',
+      canal: 'Recepción',
+      fecha: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      estado: 'Confirmado',
+    },
+  ] : [];
+
+  const motivoInasistencia = pacienteId ? 'Trabajo' : null;
 
   // const calcularEdad = (fecha: Date) => {
   //   const hoy = new Date();
@@ -211,6 +244,26 @@ export function PatientProfile({
         </div>
       </div>
 
+      {/* Segmento y preferencias */}
+      <div className="p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-gray-600 uppercase">
+            Segmento
+          </p>
+          <Badge variant="outline" className="text-xs">
+            {segmentoPaciente}
+          </Badge>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="default" className="bg-blue-100 text-blue-700">
+            Preferencia: WhatsApp
+          </Badge>
+          <Badge variant="default" className="bg-emerald-100 text-emerald-700">
+            Consentimiento OK
+          </Badge>
+        </div>
+      </div>
+
       {/* Historial de Citas */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-3">
@@ -263,6 +316,31 @@ export function PatientProfile({
               Ver todas ({historialCitas.length} citas) →
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Timeline de contacto */}
+      <div className="p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-gray-600 uppercase">
+            🧭 Timeline de contacto
+          </p>
+        </div>
+        <div className="space-y-3">
+          {timelineContacto.map((item) => (
+            <div key={item.id} className="flex items-start gap-3">
+              <div className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-500" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">{item.titulo}</p>
+                <p className="text-xs text-gray-500">
+                  {item.canal} · {item.fecha.toLocaleString('es-MX')}
+                </p>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {item.estado}
+              </Badge>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -362,6 +440,18 @@ export function PatientProfile({
           </Button>
         </div>
       </div>
+
+      {/* Motivo de inasistencia */}
+      {motivoInasistencia && (
+        <div className="p-4 border-b border-gray-200">
+          <p className="text-xs font-semibold text-gray-600 uppercase mb-2">
+            Motivo de inasistencia
+          </p>
+          <Badge variant="default" className="bg-rose-100 text-rose-700">
+            {motivoInasistencia}
+          </Badge>
+        </div>
+      )}
 
       {/* Modales */}
       <AgendarCitaModal

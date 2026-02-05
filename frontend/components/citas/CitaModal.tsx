@@ -57,15 +57,20 @@ export function CitaModal({
 
   const getEstadoInfo = (estado: Cita['estado']) => {
     const info = {
-      'Agendada': { color: 'bg-blue-100 text-blue-700', icon: Clock, label: 'Agendada' },
-      'Confirmada': { color: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Confirmada' },
-      'Llegó': { color: 'bg-purple-100 text-purple-700', icon: User, label: 'Paciente Llegó' },
-      'En_Atencion': { color: 'bg-orange-100 text-orange-700', icon: AlertCircle, label: 'En Atención' },
-      'Finalizada': { color: 'bg-gray-100 text-gray-700', icon: CheckCircle2, label: 'Finalizada' },
-      'Cancelada': { color: 'bg-red-100 text-red-700', icon: XCircle, label: 'Cancelada' },
-      'No_Asistio': { color: 'bg-red-100 text-red-700', icon: AlertCircle, label: 'No Asistió' }
+      Agendada: { color: 'bg-blue-100 text-blue-700', icon: Clock, label: 'Agendada' },
+      Pendiente_Confirmacion: { color: 'bg-amber-100 text-amber-700', icon: Clock, label: 'Pendiente de confirmación' },
+      Confirmada: { color: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Confirmada' },
+      Reagendada: { color: 'bg-indigo-100 text-indigo-700', icon: History, label: 'Reagendada' },
+      Llegó: { color: 'bg-purple-100 text-purple-700', icon: User, label: 'Paciente llegó' },
+      En_Atencion: { color: 'bg-orange-100 text-orange-700', icon: AlertCircle, label: 'En atención' },
+      En_Espera: { color: 'bg-sky-100 text-sky-700', icon: AlertCircle, label: 'En espera' },
+      Finalizada: { color: 'bg-gray-100 text-gray-700', icon: CheckCircle2, label: 'Finalizada' },
+      Cancelada: { color: 'bg-red-100 text-red-700', icon: XCircle, label: 'Cancelada' },
+      Inasistencia: { color: 'bg-rose-100 text-rose-700', icon: AlertCircle, label: 'Inasistencia' },
+      Perdido: { color: 'bg-slate-100 text-slate-700', icon: AlertCircle, label: 'Perdido' },
+      No_Asistio: { color: 'bg-red-100 text-red-700', icon: AlertCircle, label: 'No asistió' }
     };
-    return info[estado] || info['Agendada'];
+    return info[estado] || info.Agendada;
   };
 
   const estadoInfo = getEstadoInfo(cita.estado);
@@ -152,7 +157,7 @@ export function CitaModal({
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-blue-600 mt-1" />
                   <div>
-                    <p className="font-semibold">{cita.sucursalNombre || 'CDMX Centro'}</p>
+                    <p className="font-semibold">{cita.sucursalNombre || 'Guadalajara'}</p>
                     <p className="text-sm text-gray-600">
                       Consultorio {cita.especialidad || 'General'}
                     </p>
@@ -257,9 +262,9 @@ export function CitaModal({
                 </div>
                 <p className="text-sm text-orange-700">
                   Esta cita ha sido reagendada {cita.reagendaciones} vez{cita.reagendaciones > 1 ? 'es' : ''}.
-                  {cita.esPromocion && cita.reagendaciones >= 2 && (
+                  {!cita.esPromocion && cita.reagendaciones >= 1 && (
                     <span className="block mt-1 font-medium">
-                      ⚠️ La promoción se perdió en la segunda reagendación.
+                      ⚠️ Promoción agotada por límite de re-agendo.
                     </span>
                   )}
                 </p>
@@ -315,7 +320,7 @@ export function CitaModal({
           {/* Actions */}
           <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
             <div className="flex gap-2">
-              {cita.estado === 'Agendada' && onConfirmar && (
+              {(['Agendada', 'Pendiente_Confirmacion', 'Reagendada'] as Cita['estado'][]).includes(cita.estado) && onConfirmar && (
                 <Button
                   onClick={() => {
                     onConfirmar(cita.id);
@@ -346,7 +351,7 @@ export function CitaModal({
             </div>
 
             <div className="flex gap-2">
-              {onEditar && !['Finalizada', 'Cancelada', 'No_Asistio'].includes(cita.estado) && (
+              {onEditar && !['Finalizada', 'Cancelada', 'No_Asistio', 'Inasistencia', 'Perdido'].includes(cita.estado) && (
                 <Button
                   onClick={() => {
                     onEditar(cita);
@@ -359,7 +364,7 @@ export function CitaModal({
                   Editar
                 </Button>
               )}
-              {onCancelar && !['Finalizada', 'Cancelada', 'No_Asistio'].includes(cita.estado) && !mostrarCancelar && (
+              {onCancelar && !['Finalizada', 'Cancelada', 'No_Asistio', 'Inasistencia', 'Perdido'].includes(cita.estado) && !mostrarCancelar && (
                 <Button
                   onClick={() => setMostrarCancelar(true)}
                   variant="danger"

@@ -19,10 +19,10 @@ export interface CitasFilterState {
 }
 
 const SUCURSALES = [
-  { id: 'suc-1', nombre: 'CDMX Centro' },
-  { id: 'suc-2', nombre: 'Guadalajara' },
-  { id: 'suc-3', nombre: 'Monterrey' },
-  { id: 'suc-4', nombre: 'Puebla' }
+  { id: 'suc-1', nombre: 'Guadalajara' },
+  { id: 'suc-2', nombre: 'Ciudad Juárez' },
+  { id: 'suc-3', nombre: 'Ciudad Obregón' },
+  { id: 'suc-4', nombre: 'Loreto Héroes' }
 ];
 
 const MEDICOS = [
@@ -43,11 +43,16 @@ const TIPOS_CONSULTA = [
 
 const ESTADOS = [
   { value: 'Agendada', label: 'Agendada' },
+  { value: 'Pendiente_Confirmacion', label: 'Pendiente de Confirmación' },
   { value: 'Confirmada', label: 'Confirmada' },
+  { value: 'Reagendada', label: 'Reagendada' },
   { value: 'Llegó', label: 'Llegó' },
   { value: 'En_Atencion', label: 'En Atención' },
+  { value: 'En_Espera', label: 'En Espera' },
   { value: 'Finalizada', label: 'Finalizada' },
   { value: 'Cancelada', label: 'Cancelada' },
+  { value: 'Inasistencia', label: 'Inasistencia' },
+  { value: 'Perdido', label: 'Perdido' },
   { value: 'No_Asistio', label: 'No Asistió' }
 ];
 

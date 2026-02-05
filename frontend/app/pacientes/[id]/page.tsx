@@ -21,9 +21,19 @@ import {
   Activity,
   Eye,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 export default function PacienteDetailPage({ params }: { params: { id: string } }) {
+  const [sucursalActual, setSucursalActual] = useState('Guadalajara');
+
+  useEffect(() => {
+    const savedSucursal = localStorage.getItem('sucursalActual');
+    if (savedSucursal) {
+      setSucursalActual(savedSucursal);
+    }
+  }, []);
+
   // Datos de ejemplo (después conectaremos con el API)
   const paciente = {
     id: params.id,
@@ -39,12 +49,13 @@ export default function PacienteDetailPage({ params }: { params: { id: string } 
     direccion: {
       calle: 'Av. Insurgentes Sur 123',
       colonia: 'Del Valle',
-      ciudad: 'CDMX',
-      estado: 'Ciudad de México',
+      ciudad: 'Guadalajara',
+      estado: 'Jalisco',
       codigoPostal: '03100',
     },
     estado: 'Activo',
     fechaRegistro: '10 Ene 2024',
+    sucursal: 'Guadalajara',
   };
 
   const citas = [
@@ -54,7 +65,7 @@ export default function PacienteDetailPage({ params }: { params: { id: string } 
       hora: '10:00 AM',
       servicio: 'Consulta General',
       doctor: 'Dr. Juan Pérez',
-      sucursal: 'Matriz CDMX',
+      sucursal: 'Guadalajara',
       estado: 'Confirmada',
       tipo: 'presencial',
     },
@@ -64,7 +75,7 @@ export default function PacienteDetailPage({ params }: { params: { id: string } 
       hora: '2:00 PM',
       servicio: 'Laboratorio',
       doctor: 'Laboratorio RCA',
-      sucursal: 'Matriz CDMX',
+      sucursal: 'Guadalajara',
       estado: 'Completada',
       tipo: 'presencial',
     },
@@ -74,7 +85,7 @@ export default function PacienteDetailPage({ params }: { params: { id: string } 
       hora: '11:00 AM',
       servicio: 'Consulta General',
       doctor: 'Dra. María López',
-      sucursal: 'Sucursal Norte',
+      sucursal: 'Guadalajara',
       estado: 'Completada',
       tipo: 'presencial',
     },
@@ -132,6 +143,15 @@ export default function PacienteDetailPage({ params }: { params: { id: string } 
             Editar Paciente
           </Button>
         </div>
+
+        {paciente.sucursal !== sucursalActual && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-800">
+              Este paciente pertenece a <strong>{paciente.sucursal}</strong>. Estás viendo la
+              sucursal <strong>{sucursalActual}</strong> en modo demo.
+            </p>
+          </div>
+        )}
 
         {/* Información del Paciente */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

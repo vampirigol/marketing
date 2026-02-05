@@ -120,7 +120,11 @@ export function VistaSemanaEnhanced({
     return {
       total: citasDelDia.length,
       confirmadas: citasDelDia.filter(c => c.estado === 'Confirmada').length,
-      pendientes: citasDelDia.filter(c => c.estado === 'Agendada').length,
+      pendientes: citasDelDia.filter(c =>
+        c.estado === 'Agendada' ||
+        c.estado === 'Pendiente_Confirmacion' ||
+        c.estado === 'Reagendada'
+      ).length,
       ocupacion: Math.min((citasDelDia.length / 12) * 100, 100) // Máx 12 citas por día
     };
   };
@@ -411,13 +415,18 @@ function CitaCardSemana({
 }: CitaCardSemanaProps) {
   const getEstadoColor = (estado: Cita['estado']) => {
     const colores = {
-      'Agendada': 'bg-blue-50 border-blue-300 text-blue-800',
-      'Confirmada': 'bg-green-50 border-green-300 text-green-800',
-      'Llegó': 'bg-purple-50 border-purple-300 text-purple-800',
-      'En_Atencion': 'bg-orange-50 border-orange-300 text-orange-800',
-      'Finalizada': 'bg-gray-50 border-gray-300 text-gray-800',
-      'Cancelada': 'bg-red-50 border-red-300 text-red-800',
-      'No_Asistio': 'bg-red-50 border-red-300 text-red-800',
+      Agendada: 'bg-blue-50 border-blue-300 text-blue-800',
+      Pendiente_Confirmacion: 'bg-amber-50 border-amber-300 text-amber-800',
+      Reagendada: 'bg-indigo-50 border-indigo-300 text-indigo-800',
+      Confirmada: 'bg-green-50 border-green-300 text-green-800',
+      Llegó: 'bg-purple-50 border-purple-300 text-purple-800',
+      En_Atencion: 'bg-orange-50 border-orange-300 text-orange-800',
+      En_Espera: 'bg-sky-50 border-sky-300 text-sky-800',
+      Finalizada: 'bg-gray-50 border-gray-300 text-gray-800',
+      Cancelada: 'bg-red-50 border-red-300 text-red-800',
+      Inasistencia: 'bg-rose-50 border-rose-300 text-rose-800',
+      Perdido: 'bg-slate-50 border-slate-300 text-slate-800',
+      No_Asistio: 'bg-rose-50 border-rose-300 text-rose-800',
     };
     return colores[estado] || 'bg-gray-50 border-gray-300 text-gray-800';
   };
@@ -486,7 +495,9 @@ function CitaCardSemana({
         {/* Estado visible */}
         <div className="flex items-center gap-1">
           {cita.estado === 'Confirmada' && <CheckCircle2 className="w-3 h-3 text-green-600" />}
-          {cita.estado === 'Agendada' && <Clock className="w-3 h-3 text-blue-600" />}
+          {(cita.estado === 'Agendada' || cita.estado === 'Pendiente_Confirmacion' || cita.estado === 'Reagendada') && (
+            <Clock className="w-3 h-3 text-blue-600" />
+          )}
           {hasConflict && <AlertCircle className="w-3 h-3 text-red-500" />}
         </div>
       </div>
@@ -494,7 +505,7 @@ function CitaCardSemana({
       {/* Quick actions en hover */}
       {isHovered && (
         <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 flex gap-1 bg-white rounded-lg shadow-xl border border-gray-200 p-1 z-20">
-          {cita.estado === 'Agendada' && onQuickConfirm && (
+          {(['Agendada', 'Pendiente_Confirmacion', 'Reagendada'] as Cita['estado'][]).includes(cita.estado) && onQuickConfirm && (
             <button
               onClick={(e) => {
                 e.stopPropagation();

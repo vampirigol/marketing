@@ -1,14 +1,16 @@
 'use client';
 
-import { CheckCircle, Clock, XCircle, AlertCircle, Activity } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertCircle, Activity, RefreshCcw, UserX, Users } from 'lucide-react';
 
 export function LeyendaEstados() {
   const estados = [
+    { nombre: 'Pendiente de Confirmación', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-100' },
     { nombre: 'Confirmada', icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-100' },
-    { nombre: 'Pendiente', icon: Clock, color: 'text-orange-600', bg: 'bg-orange-100' },
-    { nombre: 'Cancelada', icon: XCircle, color: 'text-red-600', bg: 'bg-red-100' },
-    { nombre: 'No Asistió', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-100' },
-    { nombre: 'En Atención', icon: Activity, color: 'text-blue-600', bg: 'bg-blue-100' }
+    { nombre: 'Reagendada', icon: RefreshCcw, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+    { nombre: 'En Espera', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { nombre: 'En Atención', icon: Activity, color: 'text-blue-600', bg: 'bg-blue-100' },
+    { nombre: 'Inasistencia', icon: UserX, color: 'text-rose-600', bg: 'bg-rose-100' },
+    { nombre: 'Cancelada', icon: XCircle, color: 'text-red-600', bg: 'bg-red-100' }
   ];
 
   const densidades = [

@@ -18,7 +18,8 @@ import {
   PieChart,
   BarChart3,
   Download,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -72,10 +73,18 @@ export function ReportesOcupacion({ citas, onClose }: ReportesOcupacionProps) {
         : 0;
 
       const confirmadas = citasPeriodo.filter(c => c.estado === 'Confirmada').length;
-      const pendientes = citasPeriodo.filter(c => c.estado === 'Agendada').length;
+      const pendientes = citasPeriodo.filter(c =>
+        c.estado === 'Agendada' ||
+        c.estado === 'Pendiente_Confirmacion' ||
+        c.estado === 'Reagendada'
+      ).length;
       const canceladas = citasPeriodo.filter(c => c.estado === 'Cancelada').length;
-      const noAsistio = citasPeriodo.filter(c => c.estado === 'No_Asistio').length;
+      const noAsistio = citasPeriodo.filter(c =>
+        c.estado === 'Inasistencia' ||
+        c.estado === 'No_Asistio'
+      ).length;
 
+      const finalizadas = citasPeriodo.filter(c => c.estado === 'Finalizada').length;
       const ingresosPotenciales = citasPeriodo.reduce((sum, c) => sum + (c.costoConsulta || 0), 0);
       const ingresosReales = citasPeriodo
         .filter(c => c.estado === 'Finalizada')
@@ -88,6 +97,7 @@ export function ReportesOcupacion({ citas, onClose }: ReportesOcupacionProps) {
         pendientes,
         canceladas,
         noAsistio,
+        finalizadas,
         horasTotalesDisponibles,
         horasOcupadas,
         tasaOcupacion,
@@ -103,6 +113,7 @@ export function ReportesOcupacion({ citas, onClose }: ReportesOcupacionProps) {
     const totalConfirmadas = estadisticasPorDoctor.reduce((sum, e) => sum + e.confirmadas, 0);
     const totalCanceladas = estadisticasPorDoctor.reduce((sum, e) => sum + e.canceladas, 0);
     const totalNoAsistio = estadisticasPorDoctor.reduce((sum, e) => sum + e.noAsistio, 0);
+    const totalFinalizadas = estadisticasPorDoctor.reduce((sum, e) => sum + e.finalizadas, 0);
     const totalIngresos = estadisticasPorDoctor.reduce((sum, e) => sum + e.ingresosReales, 0);
     const tasaOcupacionPromedio = estadisticasPorDoctor.reduce((sum, e) => sum + e.tasaOcupacion, 0) / estadisticasPorDoctor.length;
 
@@ -111,11 +122,14 @@ export function ReportesOcupacion({ citas, onClose }: ReportesOcupacionProps) {
       totalConfirmadas,
       totalCanceladas,
       totalNoAsistio,
+      totalFinalizadas,
       totalIngresos,
       tasaOcupacionPromedio,
       tasaConfirmacion: totalCitas > 0 ? (totalConfirmadas / totalCitas) * 100 : 0,
       tasaCancelacion: totalCitas > 0 ? (totalCanceladas / totalCitas) * 100 : 0,
-      tasaNoAsistencia: totalCitas > 0 ? (totalNoAsistio / totalCitas) * 100 : 0
+      tasaNoAsistencia: totalCitas > 0 ? (totalNoAsistio / totalCitas) * 100 : 0,
+      showRate: totalConfirmadas > 0 ? (totalFinalizadas / totalConfirmadas) * 100 : 0,
+      noShowRate: totalConfirmadas > 0 ? (totalNoAsistio / totalConfirmadas) * 100 : 0
     };
   }, [estadisticasPorDoctor]);
 
@@ -216,7 +230,7 @@ export function ReportesOcupacion({ citas, onClose }: ReportesOcupacionProps) {
             <>
               <div className="mb-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">📊 Resumen General</h3>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border-2 border-blue-200">
                     <div className="flex items-center justify-between mb-2">
                       <Calendar className="w-8 h-8 text-blue-600" />
@@ -253,6 +267,26 @@ export function ReportesOcupacion({ citas, onClose }: ReportesOcupacionProps) {
                       </span>
                     </div>
                     <p className="text-sm font-medium text-emerald-700">Ingresos Total</p>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-sky-50 to-sky-100 rounded-xl p-4 border-2 border-sky-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <Target className="w-8 h-8 text-sky-600" />
+                      <span className="text-2xl font-bold text-sky-900">
+                        {estadisticasGenerales.showRate.toFixed(0)}%
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-sky-700">Show Rate</p>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-xl p-4 border-2 border-rose-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <AlertCircle className="w-8 h-8 text-rose-600" />
+                      <span className="text-2xl font-bold text-rose-900">
+                        {estadisticasGenerales.noShowRate.toFixed(0)}%
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium text-rose-700">No-show</p>
                   </div>
                 </div>
               </div>

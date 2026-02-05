@@ -27,7 +27,7 @@ Inspirado en **Bitrix24 Open Channels**, Matrix Keila unifica todos los canales 
 │               │            ¿Para qué sucursal?  │  • Última: 15-Ene-26  │
 │  ✅ Cerradas  │                        10:24 AM │  • Grupo: Recurrente  │
 │    [145]      │                                 │                       │
-│               │  [👤 María] CDMX Centro        │  🎯 ETIQUETAS         │
+│               │  [👤 María] Guadalajara        │  🎯 ETIQUETAS         │
 │  🔍 Buscar    │                        10:25 AM │  [🎁 Promoción]       │
 │               │                                 │  [✅ Confirmada]      │
 │  📊 Estadís.  │  [👨 Keila] Perfecto. Tenemos │                       │
@@ -202,7 +202,7 @@ Estilo:
         ┌──────────────────────────────────────┐
         │ [ℹ️] Cita agendada automáticamente   │
         │     Jueves 4 Feb, 10:00 AM           │
-        │     CDMX Centro - Dr. López          │
+        │     Guadalajara - Dr. López          │
         └──────────────────────────────────────┘
 
 Estilo:
@@ -275,7 +275,7 @@ Estilo:
 │     123456789 (IMSS)             │
 │                                  │
 │  📍 Sucursal preferida:          │
-│     CDMX Centro                  │
+│     Guadalajara                  │
 │                                  │
 └──────────────────────────────────┘
 ```
@@ -305,7 +305,7 @@ Estilo:
 │                                  │
 │  ✅ 15-Ene-2026                  │
 │     Medicina General             │
-│     Dr. López • CDMX Centro      │
+│     Dr. López • Guadalajara      │
 │     [Ver detalles]               │
 │  ─────────────────────────────   │
 │  📅 4-Feb-2026 (Próxima)         │
@@ -428,7 +428,7 @@ if (detectKeyword('urgente')) {
       Te recordamos tu cita:
       📅 Jueves 4 de Febrero
       🕐 10:00 AM
-      📍 CDMX Centro
+      📍 Guadalajara
       👨‍⚕️ Dr. López
       
       Por favor confirma:

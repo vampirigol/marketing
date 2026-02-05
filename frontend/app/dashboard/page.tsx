@@ -9,8 +9,71 @@ import {
   Activity,
   ArrowUp,
   ArrowDown,
-  Eye
+  Eye,
+  Clock,
+  Users,
+  Mail,
+  PhoneCall,
+  MessageCircle,
+  ShieldCheck
 } from 'lucide-react';
+
+const funnelStages = [
+  { label: 'Leads', value: 1260, color: 'bg-blue-500', note: 'WhatsApp + redes' },
+  { label: 'Prospectos', value: 842, color: 'bg-indigo-500', note: 'Interés confirmado' },
+  { label: 'Citas', value: 512, color: 'bg-emerald-500', note: 'Agendadas' },
+  { label: 'Atendidos', value: 378, color: 'bg-teal-500', note: 'Check-in' },
+  { label: 'Seguimiento', value: 214, color: 'bg-amber-500', note: 'Reactivación' },
+];
+
+const smartLists = [
+  { title: 'Inasistencia', count: 37, helper: 'No llegaron al cierre', tone: 'text-rose-600 bg-rose-50' },
+  { title: 'En espera', count: 18, helper: '15 min sin check-in', tone: 'text-amber-600 bg-amber-50' },
+  { title: 'Reagendamiento', count: 24, helper: 'Con promo disponible', tone: 'text-indigo-600 bg-indigo-50' },
+  { title: 'Remarketing', count: 61, helper: 'Sin respuesta 7 días', tone: 'text-slate-600 bg-slate-100' },
+];
+
+const automations = [
+  {
+    title: 'Confirmación T-24h',
+    channel: 'WhatsApp',
+    status: 'Activo',
+    icon: MessageCircle,
+  },
+  {
+    title: 'Recordatorio T-3h',
+    channel: 'SMS',
+    status: 'Activo',
+    icon: PhoneCall,
+  },
+  {
+    title: 'Reactivación T+7d',
+    channel: 'Email',
+    status: 'Activo',
+    icon: Mail,
+  },
+  {
+    title: 'Check-in T+15m',
+    channel: 'Recepción',
+    status: 'Activo',
+    icon: Clock,
+  },
+];
+
+const rules = [
+  {
+    title: 'Promoción con 1 re-agendo',
+    detail: 'Segunda vez sin promoción',
+  },
+  {
+    title: 'Empalmes permitidos',
+    detail: 'Hasta 3 citas por hora/doctor',
+  },
+  {
+    title: 'Tolerancia de llegada',
+    detail: '15 min antes de lista de espera',
+  },
+];
 
 export default function DashboardPage() {
   return (
@@ -113,6 +176,127 @@ export default function DashboardPage() {
                   <p className="text-3xl font-bold text-gray-900">96</p>
                   <span className="text-xs text-gray-400">75% tasa</span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Embudo + Listas inteligentes */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="border-0 shadow-sm lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                Embudo de atención (demo)
+              </CardTitle>
+              <p className="text-xs text-gray-500 mt-1">
+                Flujo unificado desde contacto hasta seguimiento
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {funnelStages.map((stage) => (
+                <div key={stage.label} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-3">
+                      <div className={`h-2.5 w-2.5 rounded-full ${stage.color}`} />
+                      <span className="font-medium text-gray-900">{stage.label}</span>
+                      <span className="text-xs text-gray-400">{stage.note}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {stage.value.toLocaleString('es-MX')}
+                    </span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-gray-100">
+                    <div
+                      className={`h-2 rounded-full ${stage.color}`}
+                      style={{ width: `${(stage.value / funnelStages[0].value) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                Reglas demo activas: confirmaciones, recordatorios, re-agendos.
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                Listas inteligentes
+              </CardTitle>
+              <p className="text-xs text-gray-500 mt-1">
+                Seguimiento automático por estado
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {smartLists.map((list) => (
+                <div key={list.title} className={`rounded-lg px-4 py-3 ${list.tone}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{list.title}</p>
+                    <span className="text-lg font-bold">{list.count}</span>
+                  </div>
+                  <p className="text-xs mt-1 opacity-80">{list.helper}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Automatizaciones + Reglas */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="border-0 shadow-sm lg:col-span-2">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                Automatizaciones activas
+              </CardTitle>
+              <p className="text-xs text-gray-500 mt-1">
+                Mensajería omnicanal y tareas operativas
+              </p>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {automations.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.title} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
+                          <Icon className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                          <p className="text-xs text-gray-500">{item.channel}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                Reglas clave
+              </CardTitle>
+              <p className="text-xs text-gray-500 mt-1">
+                Configurables por sucursal
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {rules.map((rule) => (
+                <div key={rule.title} className="rounded-lg border border-gray-100 p-4">
+                  <p className="text-sm font-semibold text-gray-900">{rule.title}</p>
+                  <p className="text-xs text-gray-500 mt-1">{rule.detail}</p>
+                </div>
+              ))}
+              <div className="rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                Demo: los cambios se reflejan en agenda y recepción.
               </div>
             </CardContent>
           </Card>

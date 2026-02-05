@@ -142,7 +142,7 @@ Badges de colores: Estados de citas
 │ 🏷️ Primera Vez • Medicina General   │
 │ 👨‍⚕️ Dr. López                        │
 │ ─────────────────────────────────────│
-│ 📍 CDMX Centro           💰 $250     │
+│ 📍 Guadalajara           💰 $250     │
 └──────────────────────────────────────┘
 ```
 
@@ -185,7 +185,7 @@ Badges de colores: Estados de citas
 ├────────────────────────────────────────────────────────┤
 │                                                        │
 │  FECHA Y HORA                  UBICACIÓN              │
-│  📅 Martes 3 de Febrero 2026  📍 CDMX Centro         │
+│  📅 Martes 3 de Febrero 2026  📍 Guadalajara         │
 │  🕐 09:30 (45 min)            Consultorio General     │
 │                                                        │
 │  ┌─────────────────── INFORMACIÓN DEL PACIENTE ─────┐│
@@ -261,7 +261,7 @@ Expandido:
 2. **Sucursal**
    - Dropdown con todas las sucursales
    - Opción "Todas las sucursales"
-   - Valores: CDMX Centro, Guadalajara, Monterrey, Puebla
+   - Valores: Guadalajara, Ciudad Juárez, Ciudad Obregón, Loreto Héroes
 
 3. **Médico**
    - Dropdown con médicos asignados
@@ -412,7 +412,7 @@ El sistema genera automáticamente:
   pacienteEmail: 'paciente@email.com',
   pacienteNoAfiliacion: 'RCA-2024-3847',
   sucursalId: 'suc-1',
-  sucursalNombre: 'CDMX Centro',
+  sucursalNombre: 'Guadalajara',
   fechaCita: new Date('2026-02-04'),
   horaCita: '09:30',
   duracionMinutos: 45,

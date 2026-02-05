@@ -50,6 +50,29 @@ export function MatrixInbox({
   const pendientes = conversacionesFiltradas.filter(c => c.estado === 'pendiente');
   const cerradas = conversacionesFiltradas.filter(c => c.estado === 'cerrada');
 
+  const listasInteligentes = [
+    {
+      title: 'Inasistencia',
+      count: conversacionesFiltradas.filter(c => c.etiquetas.includes('Inasistencia')).length,
+      tone: 'text-rose-700 bg-rose-50 border-rose-200',
+    },
+    {
+      title: 'Reagendar',
+      count: conversacionesFiltradas.filter(c => c.etiquetas.includes('Reagendar')).length,
+      tone: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+    },
+    {
+      title: 'En espera',
+      count: conversacionesFiltradas.filter(c => c.etiquetas.includes('En espera')).length,
+      tone: 'text-amber-700 bg-amber-50 border-amber-200',
+    },
+    {
+      title: 'Perdido',
+      count: conversacionesFiltradas.filter(c => c.etiquetas.includes('Perdido')).length,
+      tone: 'text-slate-700 bg-slate-100 border-slate-200',
+    },
+  ];
+
   const getIconoCanal = (canal: CanalType) => {
     switch (canal) {
       case 'tiktok':
@@ -216,9 +239,23 @@ export function MatrixInbox({
         )}
       </div>
 
-      {/* Estadísticas rápidas */}
+      {/* Listas inteligentes */}
       <div className="p-3 border-t border-gray-200 bg-white">
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Listas inteligentes
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {listasInteligentes.map((item) => (
+            <div key={item.title} className={`rounded-lg border px-2 py-1.5 ${item.tone}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold">{item.title}</span>
+                <span className="text-xs font-bold">{item.count}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-xs text-gray-500">Activas</p>
             <p className="text-lg font-bold text-green-600">{activas.length}</p>

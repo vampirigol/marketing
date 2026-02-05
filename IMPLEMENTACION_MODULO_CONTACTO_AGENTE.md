@@ -331,7 +331,7 @@ curl -X POST http://localhost:3001/api/contactos \
     "telefono": "5512345678",
     "whatsapp": "5512345678",
     "sucursalId": "suc-1",
-    "sucursalNombre": "CDMX Centro",
+    "sucursalNombre": "Guadalajara",
     "motivo": "Urgencia",
     "motivoDetalle": "Necesito cambiar mi cita de hoy",
     "preferenciaContacto": "WhatsApp",
@@ -349,7 +349,7 @@ curl -X POST http://localhost:3001/api/contactos \
     "prioridad": "Alta",
     "tiempoRespuestaEstimado": 15
   },
-  "mensaje": "¡Solicitud registrada exitosamente! Un agente de CDMX Centro se comunicará contigo en aproximadamente 15 minutos por WhatsApp.",
+  "mensaje": "¡Solicitud registrada exitosamente! Un agente de Guadalajara se comunicará contigo en aproximadamente 15 minutos por WhatsApp.",
   "notificacionEnviada": true
 }
 ```

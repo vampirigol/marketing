@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Lead } from '@/types/matrix';
 import { convertirLeadAPaciente } from '@/lib/conversion.service';
 import { X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { getServiciosPorSucursal } from '@/lib/doctores-data';
 
 interface ConversionModalProps {
   lead: Lead;
@@ -30,7 +31,16 @@ type Step = 'form' | 'loading' | 'success' | 'error';
 
 export function ConversionModal({ lead, isOpen, onClose, onSuccess }: ConversionModalProps) {
   const [step, setStep] = useState<Step>('form');
-  const [especialidad, setEspecialidad] = useState('Consulta General');
+  const sucursalLead = typeof lead.customFields?.Sucursal === 'string' ? lead.customFields?.Sucursal : undefined;
+  const serviciosDisponibles = useMemo(() => {
+    if (sucursalLead) return getServiciosPorSucursal(sucursalLead);
+    return ['Consulta Medicina General', 'Consulta Odontológica', 'Consulta Oftalmológica'];
+  }, [sucursalLead]);
+  const servicioInicial =
+    (typeof lead.customFields?.Servicio === 'string' && serviciosDisponibles.includes(lead.customFields?.Servicio))
+      ? lead.customFields?.Servicio
+      : serviciosDisponibles[0];
+  const [especialidad, setEspecialidad] = useState(servicioInicial);
   const [tipoConsulta, setTipoConsulta] = useState('Consulta Inicial');
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ConversionResponse | null>(null);
@@ -103,18 +113,18 @@ export function ConversionModal({ lead, isOpen, onClose, onSuccess }: Conversion
               {/* Especialidad */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Especialidad
+                  Servicio / Especialidad
                 </label>
                 <select
                   value={especialidad}
                   onChange={(e) => setEspecialidad(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option>Consulta General</option>
-                  <option>Odontología</option>
-                  <option>Dermatología</option>
-                  <option>Oftalmología</option>
-                  <option>Ortopedia</option>
+                  {serviciosDisponibles.map((servicio) => (
+                    <option key={servicio} value={servicio}>
+                      {servicio}
+                    </option>
+                  ))}
                 </select>
               </div>
 
