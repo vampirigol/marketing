@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { Cita } from '@/types';
+import { ZoomLevel } from '@/components/citas/ZoomControls';
 import { Button } from '@/components/ui/Button';
 import { CitaCard } from '@/components/citas/CitaCard';
+import { VistaSemanaEnhanced } from '@/components/citas/VistaSemanaEnhanced';
 
 interface CalendarViewProps {
   citas: Cita[];
@@ -11,6 +14,13 @@ interface CalendarViewProps {
   onFechaChange: (fecha: Date) => void;
   onCitaClick: (cita: Cita) => void;
   vista: 'dia' | 'semana' | 'mes';
+  onQuickConfirm?: (citaId: string) => void;
+  onQuickCancel?: (citaId: string) => void;
+  onCreateCita?: (fecha: Date, hora: string) => void;
+  onDragCita?: (citaId: string, nuevaFecha: Date, nuevaHora: string) => void;
+  zoomLevel?: ZoomLevel;
+  vistaMultiDoctor?: boolean;
+  selectedDoctores?: string[];
 }
 
 export function CalendarView({
@@ -18,7 +28,14 @@ export function CalendarView({
   fechaSeleccionada,
   onFechaChange,
   onCitaClick,
-  vista
+  vista,
+  onQuickConfirm,
+  onQuickCancel,
+  onCreateCita,
+  onDragCita,
+  zoomLevel = 'normal',
+  vistaMultiDoctor = false,
+  selectedDoctores = []
 }: CalendarViewProps) {
   const cambiarDia = (dias: number) => {
     const nuevaFecha = new Date(fechaSeleccionada);
@@ -78,13 +95,22 @@ export function CalendarView({
             citas={citas}
             fecha={fechaSeleccionada}
             onCitaClick={onCitaClick}
+            onQuickConfirm={onQuickConfirm}
+            onQuickCancel={onQuickCancel}
           />
         )}
         {vista === 'semana' && (
-          <VistaSemana
+          <VistaSemanaEnhanced
             citas={citas}
             fecha={fechaSeleccionada}
             onCitaClick={onCitaClick}
+            onQuickConfirm={onQuickConfirm}
+            onQuickCancel={onQuickCancel}
+            onCreateCita={onCreateCita}
+            onDragCita={onDragCita}
+            zoomLevel={zoomLevel}
+            vistaMultiDoctor={vistaMultiDoctor}
+            selectedDoctores={selectedDoctores}
           />
         )}
         {vista === 'mes' && (
@@ -100,15 +126,36 @@ export function CalendarView({
 }
 
 // Vista de Día - Timeline con slots de 30 minutos
-function VistaDia({ citas, fecha, onCitaClick }: {
+function VistaDia({ citas, fecha, onCitaClick, onQuickConfirm, onQuickCancel }: {
   citas: Cita[];
   fecha: Date;
   onCitaClick: (cita: Cita) => void;
+  onQuickConfirm?: (citaId: string) => void;
+  onQuickCancel?: (citaId: string) => void;
 }) {
   const horas = Array.from({ length: 13 }, (_, i) => i + 8); // 8:00 AM - 8:00 PM
   const ahora = new Date();
   const esHoy = fecha.toDateString() === ahora.toDateString();
   const horaActual = ahora.getHours();
+  const minutoActual = ahora.getMinutes();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const horaActualRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll a la hora actual o a la próxima cita
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+
+    if (esHoy && horaActualRef.current) {
+      // Scroll a la hora actual
+      horaActualRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (citas.length > 0) {
+      // Scroll a la primera cita
+      const primeraCita = citas.sort((a, b) => a.horaCita.localeCompare(b.horaCita))[0];
+      const horaPrimeraCita = parseInt(primeraCita.horaCita.split(':')[0]);
+      const elemento = scrollContainerRef.current.querySelector(`[data-hora="${horaPrimeraCita}"]`);
+      elemento?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [esHoy, citas]);
 
   // Agrupar citas por hora
   const citasPorHora = citas.reduce((acc, cita) => {
@@ -118,8 +165,17 @@ function VistaDia({ citas, fecha, onCitaClick }: {
     return acc;
   }, {} as Record<number, Cita[]>);
 
+  const handleQuickCall = (telefono: string) => {
+    window.open(`tel:${telefono}`, '_self');
+  };
+
+  const handleQuickWhatsApp = (telefono: string) => {
+    const mensaje = encodeURIComponent('Hola, le recordamos su cita programada.');
+    window.open(`https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensaje}`, '_blank');
+  };
+
   return (
-    <div className="relative">
+    <div ref={scrollContainerRef} className="relative">
       {horas.map((hora) => {
         const citasEnHora = citasPorHora[hora] || [];
         const esHoraActual = esHoy && hora === horaActual;
@@ -127,17 +183,24 @@ function VistaDia({ citas, fecha, onCitaClick }: {
         return (
           <div
             key={hora}
-            className={`flex border-b border-gray-100 min-h-[80px] ${
-              esHoraActual ? 'bg-blue-50/30' : ''
+            data-hora={hora}
+            ref={esHoraActual ? horaActualRef : null}
+            className={`flex border-b border-gray-100 min-h-[80px] transition-colors ${
+              esHoraActual ? 'bg-blue-50/30 border-blue-200' : ''
             }`}
           >
             {/* Columna de hora */}
             <div className="w-20 flex-shrink-0 p-3 text-right border-r border-gray-200">
               <span className={`text-sm font-medium ${
-                esHoraActual ? 'text-blue-600' : 'text-gray-500'
+                esHoraActual ? 'text-blue-600 font-bold' : 'text-gray-500'
               }`}>
                 {hora.toString().padStart(2, '0')}:00
               </span>
+              {esHoraActual && (
+                <div className="text-[10px] text-blue-600 font-semibold mt-1 animate-pulse">
+                  AHORA
+                </div>
+              )}
             </div>
 
             {/* Columna de citas */}
@@ -154,6 +217,10 @@ function VistaDia({ citas, fecha, onCitaClick }: {
                       cita={cita}
                       onClick={() => onCitaClick(cita)}
                       vista="dia"
+                      onQuickConfirm={onQuickConfirm}
+                      onQuickCancel={onQuickCancel}
+                      onQuickCall={handleQuickCall}
+                      onQuickWhatsApp={handleQuickWhatsApp}
                     />
                   ))}
                 </div>
@@ -163,15 +230,24 @@ function VistaDia({ citas, fecha, onCitaClick }: {
         );
       })}
 
-      {/* Línea indicadora de hora actual */}
+      {/* Línea indicadora de hora actual mejorada */}
       {esHoy && horaActual >= 8 && horaActual <= 20 && (
         <div
-          className="absolute left-20 right-0 h-0.5 bg-red-500 z-10 pointer-events-none"
+          className="absolute left-20 right-0 z-20 pointer-events-none"
           style={{
-            top: `${((horaActual - 8) * 80) + (ahora.getMinutes() / 60 * 80)}px`
+            top: `${((horaActual - 8) * 80) + (minutoActual / 60 * 80)}px`
           }}
         >
-          <div className="w-3 h-3 bg-red-500 rounded-full -ml-1.5 -mt-1.5" />
+          <div className="relative">
+            {/* Línea principal */}
+            <div className="h-0.5 bg-red-500 shadow-lg animate-pulse" />
+            {/* Círculo izquierdo */}
+            <div className="absolute -left-1.5 -top-1.5 w-3 h-3 bg-red-500 rounded-full shadow-md" />
+            {/* Badge con hora */}
+            <div className="absolute -top-4 left-4 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded shadow-md">
+              {ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
         </div>
       )}
     </div>

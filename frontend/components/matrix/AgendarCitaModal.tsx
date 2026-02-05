@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, AlertCircle } from 'lucide-react';
 import { CatalogoForm } from '@/components/citas/CatalogoForm';
 import { DisponibilidadForm } from '@/components/citas/DisponibilidadForm';
 import { DatosPacienteForm } from '@/components/citas/DatosPacienteForm';
+import { SuccessModal } from '@/components/ui/SuccessModal';
+import { useToast } from '@/components/ui/Toast';
+import { validarDisponibilidadDoctor } from '@/lib/horarios-data';
 
 interface AgendarCitaModalProps {
   isOpen: boolean;
@@ -54,6 +57,10 @@ export function AgendarCitaModal({
   const [paso, setPaso] = useState<Paso>('catalogo');
   const [datosCatalogo, setDatosCatalogo] = useState<DatosCatalogo | null>(null);
   const [datosDisponibilidad, setDatosDisponibilidad] = useState<DatosDisponibilidad | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successData, setSuccessData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { showError, showWarning, showSuccess: showSuccessToast } = useToast();
 
   if (!isOpen) return null;
 
@@ -61,7 +68,14 @@ export function AgendarCitaModal({
     setPaso('catalogo');
     setDatosCatalogo(null);
     setDatosDisponibilidad(null);
+    setError(null);
     onClose();
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccess(false);
+    setSuccessData(null);
+    handleCerrar();
   };
 
   const handleCatalogoComplete = (data: DatosCatalogo) => {
@@ -70,6 +84,20 @@ export function AgendarCitaModal({
   };
 
   const handleDisponibilidadComplete = (fecha: Date, hora: string) => {
+    // Validar disponibilidad del doctor antes de continuar
+    if (datosCatalogo?.doctorId) {
+      const validacion = validarDisponibilidadDoctor(datosCatalogo.doctorId, fecha, hora);
+      
+      if (!validacion.disponible) {
+        // Mostrar notificación de error
+        showError('Horario no disponible', validacion.motivo || 'El doctor no está disponible en este horario');
+        return;
+      } else {
+        // Mostrar notificación de éxito
+        showSuccessToast('Horario disponible', '✅ Puedes continuar con el agendamiento');
+      }
+    }
+
     const datos = { fecha, hora };
     setDatosDisponibilidad(datos);
     // Si ya tenemos el pacienteId, saltamos el paso de datos del paciente
@@ -114,20 +142,39 @@ export function AgendarCitaModal({
 
       const resultado = await response.json();
       
-      // Mostrar notificación de éxito
-      alert(`✅ Cita agendada exitosamente\n\nPaciente: ${resultado.cita.paciente.nombre}\nDoctor: ${datosCatalogo!.doctorNombre}\nFecha: ${new Date(resultado.cita.fecha).toLocaleDateString('es-MX')}\nHora: ${resultado.cita.hora}\nSucursal: ${datosCatalogo!.sucursalNombre}`);
+      // Preparar datos para el modal de éxito
+      const dataSuccess = {
+        pacienteNombre: resultado.cita.paciente.nombre,
+        doctorNombre: datosCatalogo!.doctorNombre || 'No especificado',
+        fecha: new Date(resultado.cita.fecha).toLocaleDateString('es-MX', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        hora: resultado.cita.hora,
+        sucursalNombre: datosCatalogo!.sucursalNombre || 'No especificada',
+        servicioNombre: datosCatalogo!.servicioNombre
+      };
+      
+      setSuccessData(dataSuccess);
+      setShowSuccess(true);
       
       // Emitir evento para refrescar el calendario si existe
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('citaAgendada', { 
-          detail: resultado.cita 
+          detail: {
+            ...resultado.cita,
+            sucursalNombre: datosCatalogo!.sucursalNombre,
+            doctorNombre: datosCatalogo!.doctorNombre,
+            servicioNombre: datosCatalogo!.servicioNombre
+          }
         }));
       }
       
-      handleCerrar();
     } catch (error) {
       console.error('Error al agendar cita:', error);
-      alert('❌ Error al agendar la cita: ' + (error as Error).message);
+      setError((error as Error).message);
     }
   };
 
@@ -175,6 +222,25 @@ export function AgendarCitaModal({
 
           {/* Content */}
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-red-900 mb-1">Error al agendar la cita</h4>
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                  <button
+                    onClick={() => setError(null)}
+                    className="text-red-400 hover:text-red-600 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {paso === 'catalogo' && (
               <CatalogoForm
                 onNext={handleCatalogoComplete}
@@ -200,6 +266,15 @@ export function AgendarCitaModal({
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      {successData && (
+        <SuccessModal
+          isOpen={showSuccess}
+          onClose={handleSuccessClose}
+          data={successData}
+        />
+      )}
     </div>
   );
 }
