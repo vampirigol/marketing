@@ -23,6 +23,9 @@ interface LeadCardProps {
   density?: 'comfortable' | 'compact' | 'dense';
   alertSettings?: AlertSettings;
   customFieldsSettings?: CustomFieldsSettings;
+  primaryAction?: { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' } | null;
+  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada') => void;
+  hideConversionAction?: boolean;
 }
 
 // Componentes memoizados para iconos de canal (evita recrearlos en cada render)
@@ -45,7 +48,9 @@ function arePropsEqual(prevProps: LeadCardProps, nextProps: LeadCardProps): bool
     prevProps.style === nextProps.style &&
     prevProps.isDragging === nextProps.isDragging &&
     prevProps.viewMode === nextProps.viewMode &&
-    prevProps.density === nextProps.density
+    prevProps.density === nextProps.density &&
+    prevProps.primaryAction?.actionId === nextProps.primaryAction?.actionId &&
+    prevProps.primaryAction?.label === nextProps.primaryAction?.label
   );
 }
 
@@ -59,6 +64,9 @@ export const LeadCard = memo(function LeadCard({
   density = 'comfortable',
   alertSettings = defaultAlertSettings,
   customFieldsSettings = DEFAULT_CUSTOM_FIELDS_SETTINGS,
+  primaryAction = null,
+  onPrimaryAction,
+  hideConversionAction = false,
 }: LeadCardProps) {
   const { isLeadSelected, toggleLeadSelection } = useDragContext();
   const isSelected = isLeadSelected(lead.id);
@@ -194,7 +202,7 @@ export const LeadCard = memo(function LeadCard({
       )}
 
       {/* Botón flotante de conversión (solo expandida) */}
-      {viewMode === 'expanded' && (
+      {viewMode === 'expanded' && !hideConversionAction && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -208,8 +216,8 @@ export const LeadCard = memo(function LeadCard({
       )}
 
       {/* Header con avatar y acciones */}
-      <div className={`flex items-start justify-between ${viewMode === 'compact' ? 'mb-1' : 'mb-3'} text-left`}>
-        <div className="grid grid-cols-[auto_1fr] gap-3 flex-1 min-w-0">
+      <div className={`flex items-start justify-start ${viewMode === 'compact' ? 'mb-1' : 'mb-3'} text-left w-full`}>
+        <div className="grid grid-cols-[auto_1fr] gap-3 w-full min-w-0">
           {/* Checkbox */}
           <label
             onClick={(e) => {
@@ -245,12 +253,12 @@ export const LeadCard = memo(function LeadCard({
 
             {/* Nombre + meta */}
             <div className="flex-1 min-w-0 text-left">
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
                 <h3 className={`font-semibold text-gray-900 truncate ${titleClass}`}>
                   {lead.nombre}
                 </h3>
                 {viewMode === 'expanded' && (
-                  <button className="p-1 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button className="p-1 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
                     <MoreVertical className="w-4 h-4 text-gray-400" />
                   </button>
                 )}
@@ -315,6 +323,18 @@ export const LeadCard = memo(function LeadCard({
         </div>
       )}
 
+      {viewMode === 'expanded' && primaryAction && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrimaryAction?.(lead, primaryAction.actionId);
+          }}
+          className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          {primaryAction.label}
+        </button>
+      )}
+
       {/* Vista compacta: contacto + interés */}
       {viewMode === 'compact' && (
         <div className="space-y-1.5 mb-2">
@@ -336,6 +356,18 @@ export const LeadCard = memo(function LeadCard({
             </p>
           )}
         </div>
+      )}
+
+      {viewMode === 'compact' && primaryAction && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrimaryAction?.(lead, primaryAction.actionId);
+          }}
+          className="w-full rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          {primaryAction.label}
+        </button>
       )}
 
       {/* Valor estimado */}

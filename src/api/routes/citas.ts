@@ -46,6 +46,26 @@ router.get('/sucursal/:sucursalId', autenticar, requierePermiso('citas', 'leer')
 router.get('/disponibilidad/:sucursalId', autenticar, (req, res) => controller.obtenerDisponibilidad(req, res));
 
 /**
+ * @route GET /api/citas/stats/kpi
+ * @desc KPI de citas (confirmación, asistencia, no-show)
+ * @query sucursalId?, fechaInicio?, fechaFin?
+ * @access Privado
+ */
+router.get('/stats/kpi', autenticar, requierePermiso('citas', 'leer'), (req, res) =>
+  controller.obtenerKpi(req, res)
+);
+
+/**
+ * @route GET /api/citas/alertas/riesgo
+ * @desc Alertas de riesgo de no-show
+ * @query sucursalId?
+ * @access Privado
+ */
+router.get('/alertas/riesgo', autenticar, requierePermiso('citas', 'leer'), (req, res) =>
+  controller.obtenerAlertasRiesgo(req, res)
+);
+
+/**
  * @route PUT /api/citas/:id
  * @desc Actualizar una cita (editar)
  * @body { fechaCita, horaCita, especialidad, medicoAsignado, notas, sinHorario }

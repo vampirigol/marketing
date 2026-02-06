@@ -6,11 +6,15 @@ import { MatrixKanbanView } from '@/components/matrix/MatrixKanbanView';
 import { SUCURSALES } from '@/lib/doctores-data';
 import { Lead, LeadStatus } from '@/types/matrix';
 import {
+  CRM_COLUMN_CONFIGS,
   crearEmbudoConfigs,
+  obtenerAccionPrimariaLead,
   obtenerLeadsParaEmbudo,
   paginarLeads,
+  persistirMovimientoLead,
 } from '@/lib/crm-funnels.service';
-import { BarChart3, Filter, Target } from 'lucide-react';
+import Link from 'next/link';
+import { Filter, Target, UserCheck, UserX, Settings } from 'lucide-react';
 
 export default function CrmPage() {
   const embudos = useMemo(() => crearEmbudoConfigs(SUCURSALES), []);
@@ -56,22 +60,79 @@ export default function CrmPage() {
 
   const estadisticas = useMemo(() => {
     const total = leadsActuales.length;
-    const valorTotal = leadsActuales.reduce((acc, lead) => acc + (lead.valorEstimado || 0), 0);
-    const nuevos = leadsActuales.filter((lead) => lead.status === 'new').length;
-    const calificados = leadsActuales.filter((lead) => lead.status === 'qualified').length;
-    const negociacion = leadsActuales.filter((lead) => lead.status === 'open-deal').length;
-    const tasaConversion = total === 0 ? 0 : Math.round((calificados / total) * 100);
+    const confirmadas = leadsActuales.filter((lead) => lead.status === 'open').length;
+    const pendientes = leadsActuales.filter((lead) => lead.status === 'in-progress').length;
+    const cierres = leadsActuales.filter((lead) => lead.status === 'qualified').length;
+    const atendidas = leadsActuales.filter(
+      (lead) => lead.status === 'qualified' && lead.customFields?.CRM_Resultado === 'Atendida'
+    ).length;
+    const noShow = leadsActuales.filter(
+      (lead) => lead.status === 'qualified' && lead.customFields?.CRM_Resultado === 'No show'
+    ).length;
+    const confirmacionBase = confirmadas + pendientes;
+    const confirmacionRate = confirmacionBase === 0 ? 0 : Math.round((confirmadas / confirmacionBase) * 100);
+    const asistenciaBase = atendidas + noShow;
+    const asistenciaRate = asistenciaBase === 0 ? 0 : Math.round((atendidas / asistenciaBase) * 100);
+    const noShowRate = asistenciaBase === 0 ? 0 : Math.round((noShow / asistenciaBase) * 100);
 
-    return { total, valorTotal, nuevos, calificados, negociacion, tasaConversion };
+    return {
+      total,
+      confirmadas,
+      pendientes,
+      cierres,
+      atendidas,
+      noShow,
+      confirmacionRate,
+      asistenciaRate,
+      noShowRate,
+    };
   }, [leadsActuales]);
 
-  const etapasConConteo = useMemo(() => {
-    if (!embudoActivo) return [];
-    return embudoActivo.etapas.map((etapa) => ({
-      ...etapa,
-      count: leadsActuales.filter((lead) => lead.status === etapa.id).length,
-    }));
-  }, [embudoActivo, leadsActuales]);
+  const handleMoveLead = useCallback(
+    async (leadId: string, _fromStatus: LeadStatus, toStatus: LeadStatus) => {
+      if (!embudoActivo) return;
+      const actualizado = await persistirMovimientoLead(embudoActivo.id, leadId, toStatus);
+      if (!actualizado) return;
+      setLeadsActuales((prev) =>
+        prev.map((lead) => (lead.id === leadId ? actualizado : lead))
+      );
+    },
+    [embudoActivo]
+  );
+
+  const handlePrimaryAction = useCallback(
+    async (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada') => {
+      if (!embudoActivo) return;
+      let nuevoStatus: LeadStatus = lead.status;
+      let resultado: string | undefined = lead.customFields?.CRM_Resultado as string | undefined;
+
+      if (actionId === 'confirmar') {
+        nuevoStatus = 'open';
+        resultado = undefined;
+      }
+      if (actionId === 'llegada') {
+        nuevoStatus = 'qualified';
+        resultado = 'Atendida';
+      }
+      if (actionId === 'reagendar') {
+        nuevoStatus = 'in-progress';
+        resultado = undefined;
+      }
+
+      const extraFields = resultado ? { CRM_Resultado: resultado } : undefined;
+      const actualizado = await persistirMovimientoLead(embudoActivo.id, lead.id, nuevoStatus, extraFields);
+      if (!actualizado) return;
+      const nextLead = {
+        ...actualizado,
+        customFields: {
+          ...(actualizado.customFields || {}),
+          ...(resultado ? { CRM_Resultado: resultado } : {}),
+        },
+      };
+      setLeadsActuales((prev) => prev.map((item) => (item.id === lead.id ? nextLead : item)));
+    },
+    [embudoActivo]
+  );
 
   return (
     <DashboardLayout>
@@ -92,6 +153,13 @@ export default function CrmPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <Link
+                href="/automatizaciones"
+                className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
+              >
+                <Settings className="w-4 h-4" />
+                Automatizaciones CRM
+              </Link>
               <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                 <Filter className="w-4 h-4 text-gray-500" />
                 <select
@@ -114,37 +182,37 @@ export default function CrmPage() {
               <div className={`bg-gradient-to-br ${embudoActivo.theme.softBg} border ${embudoActivo.theme.border} rounded-xl p-4`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className={`text-xs font-semibold ${embudoActivo.theme.text}`}>Meta mensual</p>
-                    <p className="text-2xl font-bold text-gray-900">{embudoActivo.metaMensual}</p>
+                    <p className={`text-xs font-semibold ${embudoActivo.theme.text}`}>Confirmación</p>
+                    <p className="text-2xl font-bold text-gray-900">{estadisticas.confirmacionRate}%</p>
                   </div>
                   <Target className={`w-8 h-8 ${embudoActivo.theme.accent}`} />
                 </div>
-                <p className="text-xs text-gray-500 mt-2">{embudoActivo.descripcion}</p>
-              </div>
-              <div className={`bg-gradient-to-br ${embudoActivo.theme.softBg} border ${embudoActivo.theme.border} rounded-xl p-4`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className={`text-xs font-semibold ${embudoActivo.theme.text}`}>Conversión</p>
-                    <p className="text-2xl font-bold text-gray-900">{estadisticas.tasaConversion}%</p>
-                  </div>
-                  <BarChart3 className={`w-8 h-8 ${embudoActivo.theme.accent}`} />
-                </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  {estadisticas.calificados} calificados · {estadisticas.negociacion} en negociación
+                  {estadisticas.confirmadas} confirmadas · {estadisticas.pendientes} pendientes
                 </p>
               </div>
               <div className={`bg-gradient-to-br ${embudoActivo.theme.softBg} border ${embudoActivo.theme.border} rounded-xl p-4`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className={`text-xs font-semibold ${embudoActivo.theme.text}`}>Valor pipeline</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      ${estadisticas.valorTotal.toLocaleString('es-MX')}
-                    </p>
+                    <p className={`text-xs font-semibold ${embudoActivo.theme.text}`}>Asistencia</p>
+                    <p className="text-2xl font-bold text-gray-900">{estadisticas.asistenciaRate}%</p>
                   </div>
-                  <Target className={`w-8 h-8 ${embudoActivo.theme.accent}`} />
+                  <UserCheck className={`w-8 h-8 ${embudoActivo.theme.accent}`} />
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  {estadisticas.total} oportunidades · {estadisticas.nuevos} nuevas
+                  {estadisticas.atendidas} atendidas · {estadisticas.cierres} en cierre
+                </p>
+              </div>
+              <div className={`bg-gradient-to-br ${embudoActivo.theme.softBg} border ${embudoActivo.theme.border} rounded-xl p-4`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-xs font-semibold ${embudoActivo.theme.text}`}>No-show</p>
+                    <p className="text-2xl font-bold text-gray-900">{estadisticas.noShowRate}%</p>
+                  </div>
+                  <UserX className={`w-8 h-8 ${embudoActivo.theme.accent}`} />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {estadisticas.noShow} no-show · {estadisticas.total} leads
                 </p>
               </div>
             </div>
@@ -163,6 +231,12 @@ export default function CrmPage() {
                 key={embudoActivo?.id}
                 onLoadMore={handleLoadMore}
                 uiVariant="bitrix"
+                columnConfigs={CRM_COLUMN_CONFIGS}
+                boardSettingsKey="crm.kanbanBoardSettings"
+                initialStates={CRM_COLUMN_CONFIGS.map((col) => col.id)}
+                getPrimaryAction={obtenerAccionPrimariaLead}
+                onPrimaryAction={handlePrimaryAction}
+                onMoveLead={handleMoveLead}
               />
             )}
         </div>

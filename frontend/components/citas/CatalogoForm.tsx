@@ -15,6 +15,8 @@ interface CatalogoFormProps {
   onNext: (data: {
     sucursalId: string;
     sucursalNombre?: string;
+    sucursalCiudad?: string;
+    sucursalEstado?: string;
     especialidadId: string;
     especialidadNombre?: string;
     doctorId: string;
@@ -84,9 +86,10 @@ export function CatalogoForm({ onNext, onCancel }: CatalogoFormProps) {
     const cargarCatalogo = async () => {
       try {
         // Construir URL con filtro de sucursal si está seleccionada
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
         const url = sucursalId 
-          ? `http://localhost:3001/api/catalogo?sucursalId=${sucursalId}`
-          : 'http://localhost:3001/api/catalogo';
+          ? `${baseUrl}/catalogo?sucursalId=${sucursalId}`
+          : `${baseUrl}/catalogo`;
         
         const response = await fetch(url);
         if (!response.ok) throw new Error('Error cargando catálogo');
@@ -128,6 +131,8 @@ export function CatalogoForm({ onNext, onCancel }: CatalogoFormProps) {
     onNext({
       sucursalId,
       sucursalNombre: sucursalSeleccionada?.nombre,
+      sucursalCiudad: sucursalSeleccionada?.ciudad,
+      sucursalEstado: sucursalSeleccionada?.estado,
       especialidadId,
       especialidadNombre: especialidadSeleccionada?.nombre,
       doctorId,

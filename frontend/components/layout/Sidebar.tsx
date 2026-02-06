@@ -18,6 +18,8 @@ import {
   User,
   UserCheck,
   ChevronDown,
+  FileText,
+  Activity,
 } from 'lucide-react';
 import logoClinicas from '../../../src/Logos Clínicas/Logos Red de Clínicas Adventistas/cruz clinica sin fondo.png';
 import { SUCURSALES } from '@/lib/doctores-data';
@@ -31,6 +33,8 @@ const navigation = [
   { name: 'Keila IA', href: '/matrix', icon: MessageSquare },
   { name: 'Finanzas', href: '/finanzas', icon: DollarSign },
   { name: 'Reportes', href: '/reportes', icon: BarChart3 },
+  { name: 'Salud', href: '/salud', icon: Activity },
+  { name: 'Auditoría', href: '/auditoria', icon: FileText },
   { name: 'Configuración', href: '/configuracion', icon: Settings },
 ];
 

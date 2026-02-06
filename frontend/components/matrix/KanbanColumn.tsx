@@ -28,6 +28,9 @@ interface KanbanColumnProps {
   density?: 'comfortable' | 'compact' | 'dense';
   alertSettings?: AlertSettings;
   customFieldsSettings?: CustomFieldsSettings;
+  getPrimaryAction?: (lead: Lead) => { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' } | null;
+  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada') => void;
+  hideConversionAction?: boolean;
 }
 
 // Comparador personalizado para optimizar re-renders
@@ -78,6 +81,9 @@ export const KanbanColumn = memo(function KanbanColumn({
   density = 'comfortable',
   alertSettings,
   customFieldsSettings,
+  getPrimaryAction,
+  onPrimaryAction,
+  hideConversionAction = false,
 }: KanbanColumnProps) {
   
   // Setup droppable zone
@@ -227,6 +233,9 @@ export const KanbanColumn = memo(function KanbanColumn({
                   density={density}
                   alertSettings={alertSettings}
                   customFieldsSettings={customFieldsSettings}
+                  primaryAction={getPrimaryAction?.(lead) ?? null}
+                  onPrimaryAction={onPrimaryAction}
+                  hideConversionAction={hideConversionAction}
                 />
               ))}
               

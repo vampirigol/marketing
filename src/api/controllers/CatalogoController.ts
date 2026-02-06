@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { SucursalRepositoryPostgres } from '../../infrastructure/database/repositories/SucursalRepository';
 
 interface CatalogoSucursal {
   id: string;
@@ -288,7 +289,7 @@ const promociones: CatalogoPromocion[] = [
   },
 ];
 
-// Mapeo de especialidades por sucursal
+// Mapeo de especialidades por sucursal (legacy IDs)
 const especialidadesPorSucursal: Record<string, string[]> = {
   'suc-7': ['esp-1', 'esp-6', 'esp-8'], // Clínica Virtual: Medicina Integral, Psicología, Nutrición
   'suc-5': ['esp-3', 'esp-5', 'esp-11'], // Loreto Héroes: Odontología, Fisioterapia, Laboratorio Dental
@@ -304,17 +305,64 @@ export class CatalogoController {
   async obtenerCatalogo(req: Request, res: Response): Promise<void> {
     const { sucursalId } = req.query;
 
+    const sucursalRepo = new SucursalRepositoryPostgres();
+    const sucursalesDb = await sucursalRepo.obtenerActivas();
+    const sucursalesCatalogo = sucursalesDb.map((s) => ({
+      id: s.id,
+      nombre: s.nombre,
+      ciudad: s.ciudad,
+      estado: s.estado,
+      direccion: s.direccion,
+      telefono: s.telefono,
+      email: s.emailContacto,
+      zonaHoraria: s.zonaHoraria,
+      activo: s.activa,
+    }));
+
+    const legacyToName: Record<string, string> = {
+      'suc-1': 'Valle de la Trinidad',
+      'suc-2': 'Guadalajara',
+      'suc-3': 'Ciudad Obregón',
+      'suc-4': 'Ciudad Juárez',
+      'suc-5': 'Loreto Héroes',
+      'suc-6': 'Loreto Centro',
+      'suc-7': 'Clínica Virtual Adventista',
+      'suc-8': 'Valle de la Trinidad',
+    };
+
+    const dbIdByName = new Map(sucursalesDb.map((s) => [s.nombre, s.id]));
+    const mapLegacyToDbId = (legacyId: string) => {
+      const name = legacyToName[legacyId];
+      return name ? dbIdByName.get(name) : undefined;
+    };
+
+    const doctoresMapped = doctores
+      .map((doc) => {
+        const dbId = mapLegacyToDbId(doc.sucursalId);
+        if (!dbId) return null;
+        return { ...doc, sucursalId: dbId };
+      })
+      .filter(Boolean) as CatalogoDoctor[];
+
+    const especialidadesPorSucursalDb: Record<string, string[]> = {};
+    Object.entries(especialidadesPorSucursal).forEach(([legacyId, ids]) => {
+      const dbId = mapLegacyToDbId(legacyId);
+      if (dbId) {
+        especialidadesPorSucursalDb[dbId] = ids;
+      }
+    });
+
     // Filtrar especialidades por sucursal si se proporciona
     let especialidadesFiltradas = especialidades;
-    let doctoresFiltrados = doctores;
+    let doctoresFiltrados = doctoresMapped;
     let serviciosFiltrados = servicios;
 
     if (sucursalId && typeof sucursalId === 'string') {
-      const especialidadesIds = especialidadesPorSucursal[sucursalId] || [];
+      const especialidadesIds = especialidadesPorSucursalDb[sucursalId] || [];
       especialidadesFiltradas = especialidades.filter(esp => 
         especialidadesIds.includes(esp.id)
       );
-      doctoresFiltrados = doctores.filter(doc => 
+      doctoresFiltrados = doctoresMapped.filter(doc => 
         doc.sucursalId === sucursalId
       );
       serviciosFiltrados = servicios.filter(srv => 
@@ -325,7 +373,7 @@ export class CatalogoController {
     res.json({
       success: true,
       catalogo: {
-        sucursales,
+        sucursales: sucursalesCatalogo,
         especialidades: especialidadesFiltradas,
         doctores: doctoresFiltrados,
         servicios: serviciosFiltrados,

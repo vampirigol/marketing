@@ -71,7 +71,8 @@ export class SolicitarContactoAgenteUseCase {
       origen: dto.origen || 'Web',
       creadoPor: dto.creadoPor || 'Cliente',
       fechaCreacion: new Date(),
-      ultimaActualizacion: new Date()
+      ultimaActualizacion: new Date(),
+      crmStatus: 'new'
     });
 
     // 4. Guardar en repositorio

@@ -6,16 +6,31 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController';
 import { AutenticarUsuarioUseCase } from '../../core/use-cases/AutenticarUsuario';
-import { UsuarioSistemaRepository } from '../../infrastructure/database/repositories/UsuarioSistemaRepository';
+import Database from '../../infrastructure/database/Database';
+import { IUsuarioSistemaRepository, UsuarioSistemaRepository, UsuarioSistemaRepositoryPostgres } from '../../infrastructure/database/repositories/UsuarioSistemaRepository';
 import { autenticar } from '../middleware/auth';
 import { requiereRol } from '../middleware/authorization';
 
 const router = Router();
 
 // Inicializar dependencias
-const usuarioRepository = new UsuarioSistemaRepository();
-const autenticarUseCase = new AutenticarUsuarioUseCase(usuarioRepository);
-const authController = new AuthController(autenticarUseCase);
+let usuarioRepository: IUsuarioSistemaRepository = new UsuarioSistemaRepository();
+let autenticarUseCase = new AutenticarUsuarioUseCase(usuarioRepository);
+let authController = new AuthController(autenticarUseCase);
+
+const initUsuarioRepository = async (): Promise<void> => {
+  try {
+    const connected = await Database.getInstance().testConnection();
+    if (connected) {
+      usuarioRepository = new UsuarioSistemaRepositoryPostgres();
+      autenticarUseCase = new AutenticarUsuarioUseCase(usuarioRepository);
+      authController = new AuthController(autenticarUseCase);
+    }
+  } catch {
+    // Mantener repositorio en memoria si la DB no está disponible
+  }
+};
+void initUsuarioRepository();
 
 /**
  * Rutas Públicas (no requieren autenticación)
@@ -42,12 +57,12 @@ router.post('/cambiar-password', autenticar, authController.cambiarPassword);
  */
 
 // POST /auth/register - Registrar nuevo usuario
-router.post('/register', autenticar, requiereRol(['Admin']), authController.register);
+router.post('/register', autenticar, requiereRol('Admin'), authController.register);
 
 // POST /auth/usuarios/:id/suspender - Suspender usuario
-router.post('/usuarios/:id/suspender', autenticar, requiereRol(['Admin']), authController.suspender);
+router.post('/usuarios/:id/suspender', autenticar, requiereRol('Admin'), authController.suspender);
 
 // POST /auth/usuarios/:id/activar - Activar usuario
-router.post('/usuarios/:id/activar', autenticar, requiereRol(['Admin']), authController.activar);
+router.post('/usuarios/:id/activar', autenticar, requiereRol('Admin'), authController.activar);
 
 export default router;

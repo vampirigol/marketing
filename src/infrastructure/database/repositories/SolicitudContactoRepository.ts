@@ -3,6 +3,8 @@
  * Gestiona el almacenamiento y recuperación de solicitudes de contacto
  */
 
+import { Pool } from 'pg';
+import Database from '../Database';
 import { 
   SolicitudContacto, 
   EstadoSolicitud 
@@ -27,6 +29,244 @@ export interface SolicitudContactoRepository {
     canceladas: number;
     tiempoPromedioResolucion: number;
   }>;
+}
+
+/**
+ * Implementación PostgreSQL
+ */
+export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRepository {
+  private pool: Pool;
+
+  constructor() {
+    this.pool = Database.getInstance().getPool();
+  }
+
+  async crear(solicitud: SolicitudContacto): Promise<SolicitudContacto> {
+    const query = `
+      INSERT INTO solicitudes_contacto (
+        id, paciente_id, nombre_completo, telefono, email, whatsapp,
+        sucursal_id, sucursal_nombre, motivo, motivo_detalle, preferencia_contacto,
+        estado, prioridad, agente_asignado_id, agente_asignado_nombre, intentos_contacto,
+        ultimo_intento, notas, resolucion, origen, creado_por, fecha_creacion,
+        fecha_asignacion, fecha_resolucion, ultima_actualizacion, crm_status, crm_resultado
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
+      ) RETURNING *
+    `;
+
+    const values = [
+      solicitud.id,
+      solicitud.pacienteId || null,
+      solicitud.nombreCompleto,
+      solicitud.telefono,
+      solicitud.email || null,
+      solicitud.whatsapp || null,
+      solicitud.sucursalId,
+      solicitud.sucursalNombre,
+      solicitud.motivo,
+      solicitud.motivoDetalle || null,
+      solicitud.preferenciaContacto,
+      solicitud.estado,
+      solicitud.prioridad,
+      solicitud.agenteAsignadoId || null,
+      solicitud.agenteAsignadoNombre || null,
+      solicitud.intentosContacto,
+      solicitud.ultimoIntento || null,
+      solicitud.notas || null,
+      solicitud.resolucion || null,
+      solicitud.origen,
+      solicitud.creadoPor,
+      solicitud.fechaCreacion,
+      solicitud.fechaAsignacion || null,
+      solicitud.fechaResolucion || null,
+      solicitud.ultimaActualizacion,
+      solicitud.crmStatus || null,
+      solicitud.crmResultado || null,
+    ];
+
+    const result = await this.pool.query(query, values);
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerPorId(id: string): Promise<SolicitudContacto | null> {
+    const result = await this.pool.query('SELECT * FROM solicitudes_contacto WHERE id = $1', [id]);
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerPorSucursal(sucursalId: string): Promise<SolicitudContacto[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM solicitudes_contacto WHERE sucursal_id = $1 ORDER BY fecha_creacion DESC',
+      [sucursalId]
+    );
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerPorEstado(estado: EstadoSolicitud): Promise<SolicitudContacto[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM solicitudes_contacto WHERE estado = $1 ORDER BY fecha_creacion DESC',
+      [estado]
+    );
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerPorAgente(agenteId: string): Promise<SolicitudContacto[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM solicitudes_contacto WHERE agente_asignado_id = $1 ORDER BY fecha_creacion DESC',
+      [agenteId]
+    );
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerPendientes(): Promise<SolicitudContacto[]> {
+    const result = await this.pool.query(
+      `SELECT * FROM solicitudes_contacto 
+       WHERE estado IN ('Pendiente', 'Asignada')
+       ORDER BY fecha_creacion ASC`
+    );
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerVencidas(): Promise<SolicitudContacto[]> {
+    const result = await this.pool.query(
+      `SELECT * FROM solicitudes_contacto 
+       WHERE estado = 'Pendiente'
+       AND fecha_creacion <= NOW() - INTERVAL '2 hours'
+       ORDER BY fecha_creacion ASC`
+    );
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async actualizar(id: string, datos: Partial<SolicitudContacto>): Promise<SolicitudContacto> {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    const mapField = (key: string) => {
+      const mapping: Record<string, string> = {
+        pacienteId: 'paciente_id',
+        nombreCompleto: 'nombre_completo',
+        sucursalId: 'sucursal_id',
+        sucursalNombre: 'sucursal_nombre',
+        motivoDetalle: 'motivo_detalle',
+        preferenciaContacto: 'preferencia_contacto',
+        agenteAsignadoId: 'agente_asignado_id',
+        agenteAsignadoNombre: 'agente_asignado_nombre',
+        intentosContacto: 'intentos_contacto',
+        ultimoIntento: 'ultimo_intento',
+        fechaCreacion: 'fecha_creacion',
+        fechaAsignacion: 'fecha_asignacion',
+        fechaResolucion: 'fecha_resolucion',
+        ultimaActualizacion: 'ultima_actualizacion',
+        crmStatus: 'crm_status',
+        crmResultado: 'crm_resultado',
+      };
+      return mapping[key] || key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    };
+
+    Object.entries(datos).forEach(([key, value]) => {
+      if (value !== undefined) {
+        fields.push(`${mapField(key)} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    });
+
+    fields.push(`ultima_actualizacion = CURRENT_TIMESTAMP`);
+    values.push(id);
+
+    const query = `
+      UPDATE solicitudes_contacto
+      SET ${fields.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await this.pool.query(query, values);
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerTodas(): Promise<SolicitudContacto[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM solicitudes_contacto ORDER BY fecha_creacion DESC'
+    );
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerEstadisticas(sucursalId?: string): Promise<{
+    total: number;
+    pendientes: number;
+    asignadas: number;
+    enContacto: number;
+    resueltas: number;
+    canceladas: number;
+    tiempoPromedioResolucion: number;
+  }> {
+    const result = sucursalId
+      ? await this.pool.query('SELECT * FROM solicitudes_contacto WHERE sucursal_id = $1', [sucursalId])
+      : await this.pool.query('SELECT * FROM solicitudes_contacto');
+
+    const solicitudes = result.rows.map((row) => this.mapToEntity(row));
+    const total = solicitudes.length;
+    const pendientes = solicitudes.filter((s) => s.estado === 'Pendiente').length;
+    const asignadas = solicitudes.filter((s) => s.estado === 'Asignada').length;
+    const enContacto = solicitudes.filter((s) => s.estado === 'En_Contacto').length;
+    const resueltas = solicitudes.filter((s) => s.estado === 'Resuelta').length;
+    const canceladas = solicitudes.filter((s) => s.estado === 'Cancelada').length;
+
+    const resueltasCompletas = solicitudes.filter((s) => s.estado === 'Resuelta' && s.fechaResolucion);
+    let tiempoPromedioResolucion = 0;
+    if (resueltasCompletas.length > 0) {
+      const tiempos = resueltasCompletas.map((s) => {
+        if (!s.fechaResolucion) return 0;
+        return (s.fechaResolucion.getTime() - s.fechaCreacion.getTime()) / (1000 * 60);
+      });
+      tiempoPromedioResolucion = tiempos.reduce((a, b) => a + b, 0) / tiempos.length;
+    }
+
+    return {
+      total,
+      pendientes,
+      asignadas,
+      enContacto,
+      resueltas,
+      canceladas,
+      tiempoPromedioResolucion: Math.round(tiempoPromedioResolucion),
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private mapToEntity(row: any): SolicitudContacto {
+    return {
+      id: row.id,
+      pacienteId: row.paciente_id || undefined,
+      nombreCompleto: row.nombre_completo,
+      telefono: row.telefono,
+      email: row.email || undefined,
+      whatsapp: row.whatsapp || undefined,
+      sucursalId: row.sucursal_id,
+      sucursalNombre: row.sucursal_nombre,
+      motivo: row.motivo,
+      motivoDetalle: row.motivo_detalle || undefined,
+      preferenciaContacto: row.preferencia_contacto,
+      estado: row.estado,
+      prioridad: row.prioridad,
+      agenteAsignadoId: row.agente_asignado_id || undefined,
+      agenteAsignadoNombre: row.agente_asignado_nombre || undefined,
+      intentosContacto: row.intentos_contacto || 0,
+      ultimoIntento: row.ultimo_intento || undefined,
+      notas: row.notas || undefined,
+      resolucion: row.resolucion || undefined,
+      origen: row.origen,
+      creadoPor: row.creado_por,
+      fechaCreacion: row.fecha_creacion,
+      fechaAsignacion: row.fecha_asignacion || undefined,
+      fechaResolucion: row.fecha_resolucion || undefined,
+      ultimaActualizacion: row.ultima_actualizacion,
+      crmStatus: row.crm_status || undefined,
+      crmResultado: row.crm_resultado || undefined,
+    };
+  }
 }
 
 /**
@@ -159,4 +399,18 @@ export class InMemorySolicitudContactoRepository implements SolicitudContactoRep
 }
 
 // Instancia singleton para usar en toda la aplicación
-export const solicitudContactoRepository = new InMemorySolicitudContactoRepository();
+export let solicitudContactoRepository: SolicitudContactoRepository = new InMemorySolicitudContactoRepository();
+
+const initSolicitudContactoRepository = async (): Promise<void> => {
+  try {
+    const db = Database.getInstance();
+    const connected = await db.testConnection();
+    if (connected) {
+      solicitudContactoRepository = new SolicitudContactoRepositoryPostgres();
+    }
+  } catch {
+    // Mantener repositorio en memoria si DB no está disponible
+  }
+};
+
+void initSolicitudContactoRepository();

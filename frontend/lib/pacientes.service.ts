@@ -1,4 +1,39 @@
 import { api } from './api';
+
+export interface PacientePayload {
+  nombreCompleto: string;
+  telefono: string;
+  whatsapp?: string;
+  email?: string;
+  fechaNacimiento: string;
+  edad: number;
+  sexo: 'M' | 'F' | 'Otro';
+  noAfiliacion: string;
+  tipoAfiliacion: 'IMSS' | 'ISSSTE' | 'Particular' | 'Seguro';
+  ciudad: string;
+  estado: string;
+  origenLead: 'WhatsApp' | 'Facebook' | 'Instagram' | 'Llamada' | 'Presencial' | 'Referido';
+}
+
+export const pacientesService = {
+  async crear(payload: PacientePayload) {
+    try {
+      const response = await api.post('/pacientes', payload);
+      return response.data.paciente;
+    } catch (error: any) {
+      if (error?.response?.status === 409 && error.response.data?.paciente) {
+        return error.response.data.paciente;
+      }
+      throw error;
+    }
+  },
+
+  async obtenerPorId(id: string) {
+    const response = await api.get(`/pacientes/${id}`);
+    return response.data.paciente;
+  },
+};
+import { api } from './api';
 import type { Paciente } from '@/types';
 
 export const pacientesService = {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Calendar, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { citasService } from '@/lib/citas.service';
 
 interface DisponibilidadFormProps {
   sucursalId: string;
@@ -41,28 +42,12 @@ export function DisponibilidadForm({
       setError(null);
 
       try {
-        const params = new URLSearchParams({
+        const slotsData = await citasService.obtenerDisponibilidad({
           sucursalId,
           doctorId,
           fecha,
         });
-
-        const response = await fetch(
-          `http://localhost:3001/api/catalogo/disponibilidad?${params}`
-        );
-
-        if (!response.ok) throw new Error('Error cargando disponibilidad');
-
-        const data = await response.json();
-        
-        // Validar que disponibilidad sea un array
-        if (data.disponibilidad && Array.isArray(data.disponibilidad)) {
-          setSlots(data.disponibilidad);
-        } else {
-          console.error('Respuesta sin array de disponibilidad:', data);
-          setSlots([]);
-          throw new Error('Formato de disponibilidad inválido');
-        }
+        setSlots(slotsData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido');
       } finally {

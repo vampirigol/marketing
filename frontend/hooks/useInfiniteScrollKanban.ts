@@ -21,18 +21,21 @@ interface UseInfiniteScrollKanbanProps {
   initialLimit?: number;
   loadMoreLimit?: number;
   onLoadMore: (options: LoadMoreOptions) => Promise<{ leads: Lead[]; hasMore: boolean; total: number }>;
+  initialStates?: LeadStatus[];
 }
 
-const INITIAL_STATES: LeadStatus[] = ['new', 'reviewing', 'rejected', 'qualified', 'open', 'in-progress', 'open-deal'];
+const DEFAULT_INITIAL_STATES: LeadStatus[] = ['new', 'reviewing', 'rejected', 'qualified', 'open', 'in-progress', 'open-deal'];
 
 export function useInfiniteScrollKanban({
   initialLimit = 20,
   loadMoreLimit = 10,
   onLoadMore,
+  initialStates,
 }: UseInfiniteScrollKanbanProps) {
+  const statesToUse = initialStates && initialStates.length > 0 ? initialStates : DEFAULT_INITIAL_STATES;
   const [columnsState, setColumnsState] = useState<ColumnsState>(() => {
     const initialState = {} as ColumnsState;
-    INITIAL_STATES.forEach((status) => {
+    statesToUse.forEach((status) => {
       initialState[status] = {
         leads: [],
         page: 1,
@@ -49,7 +52,7 @@ export function useInfiniteScrollKanban({
   // Cargar datos iniciales de todas las columnas
   const loadInitialData = useCallback(async () => {
     console.log('[useInfiniteScrollKanban] Iniciando carga de datos iniciales...');
-    const promises = INITIAL_STATES.map(async (status) => {
+    const promises = statesToUse.map(async (status) => {
       try {
         console.log(`[useInfiniteScrollKanban] Cargando status: ${status}`);
         const result = await onLoadMore({ status, page: 1, limit: initialLimit });
@@ -77,7 +80,7 @@ export function useInfiniteScrollKanban({
       });
       return newState;
     });
-  }, [onLoadMore, initialLimit]);
+  }, [onLoadMore, initialLimit, statesToUse]);
 
   // Cargar más datos de una columna específica
   const loadMoreForColumn = useCallback(

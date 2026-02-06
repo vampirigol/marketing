@@ -7,7 +7,8 @@ import { DisponibilidadForm } from '@/components/citas/DisponibilidadForm';
 import { DatosPacienteForm } from '@/components/citas/DatosPacienteForm';
 import { SuccessModal } from '@/components/ui/SuccessModal';
 import { useToast } from '@/components/ui/Toast';
-import { validarDisponibilidadDoctor } from '@/lib/horarios-data';
+import { citasService, type CrearCitaPayload } from '@/lib/citas.service';
+import { pacientesService } from '@/lib/pacientes.service';
 
 interface AgendarCitaModalProps {
   isOpen: boolean;
@@ -21,6 +22,8 @@ type Paso = 'catalogo' | 'disponibilidad' | 'datosPaciente' | 'confirmacion';
 interface DatosCatalogo {
   sucursalId: string;
   sucursalNombre?: string;
+  sucursalCiudad?: string;
+  sucursalEstado?: string;
   especialidadId: string;
   especialidadNombre?: string;
   doctorId: string;
@@ -84,20 +87,6 @@ export function AgendarCitaModal({
   };
 
   const handleDisponibilidadComplete = (fecha: Date, hora: string) => {
-    // Validar disponibilidad del doctor antes de continuar
-    if (datosCatalogo?.doctorId) {
-      const validacion = validarDisponibilidadDoctor(datosCatalogo.doctorId, fecha, hora);
-      
-      if (!validacion.disponible) {
-        // Mostrar notificación de error
-        showError('Horario no disponible', validacion.motivo || 'El doctor no está disponible en este horario');
-        return;
-      } else {
-        // Mostrar notificación de éxito
-        showSuccessToast('Horario disponible', '✅ Puedes continuar con el agendamiento');
-      }
-    }
-
     const datos = { fecha, hora };
     setDatosDisponibilidad(datos);
     // Si ya tenemos el pacienteId, saltamos el paso de datos del paciente
@@ -114,45 +103,58 @@ export function AgendarCitaModal({
 
   const handleConfirmarCita = async (disponibilidad: DatosDisponibilidad, datosPac?: DatosPaciente) => {
     try {
-      const citaData = {
+      const nombreCompleto = pacienteNombre || (datosPac
+        ? `${datosPac.nombre} ${datosPac.apellidoPaterno} ${datosPac.apellidoMaterno || ''}`.trim()
+        : '');
+
+      const paciente = pacienteId
+        ? { id: pacienteId, nombreCompleto }
+        : await pacientesService.crear({
+            nombreCompleto,
+            telefono: datosPac?.telefono || '',
+            whatsapp: datosPac?.telefono || '',
+            email: datosPac?.email || '',
+            fechaNacimiento: new Date(
+              new Date().getFullYear() - (datosPac?.edad || 18),
+              0,
+              1
+            ).toISOString().split('T')[0],
+            edad: datosPac?.edad || 18,
+            sexo: 'Otro',
+            noAfiliacion: datosPac?.noAfiliacion || `RCA-${Date.now()}`,
+            tipoAfiliacion: 'Particular',
+            ciudad: datosCatalogo?.sucursalCiudad || 'Guadalajara',
+            estado: datosCatalogo?.sucursalEstado || 'Jalisco',
+            origenLead: 'WhatsApp',
+          });
+
+      const payload: CrearCitaPayload = {
+        pacienteId: paciente.id,
         sucursalId: datosCatalogo!.sucursalId,
-        especialidadId: datosCatalogo!.especialidadId,
-        doctorId: datosCatalogo!.doctorId,
-        servicioId: datosCatalogo!.servicioId,
-        fecha: disponibilidad.fecha.toISOString().split('T')[0],
-        hora: disponibilidad.hora,
-        paciente: {
-          id: pacienteId || 'nuevo',
-          nombre: pacienteNombre || (datosPac ? `${datosPac.nombre} ${datosPac.apellidoPaterno} ${datosPac.apellidoMaterno || ''}` : ''),
-          telefono: datosPac?.telefono || '',
-          email: datosPac?.email || '',
-        },
+        fechaCita: disponibilidad.fecha,
+        horaCita: disponibilidad.hora,
+        tipoConsulta: 'Primera_Vez',
+        especialidad: datosCatalogo!.especialidadNombre || 'Medicina General',
+        medicoAsignado: datosCatalogo!.doctorNombre,
+        esPromocion: Boolean(datosCatalogo!.promocionAplicada),
+        codigoPromocion: datosCatalogo!.promocionAplicada ? 'PRIMERA_VEZ_2026' : undefined,
+        creadoPor: 'portal',
+        notas: datosCatalogo?.promocionAplicada ? 'Promoción aplicada' : undefined,
       };
 
-      const response = await fetch('http://localhost:3001/api/catalogo/agendar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(citaData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.mensaje || 'Error al crear la cita');
-      }
-
-      const resultado = await response.json();
+      const cita = await citasService.crear(payload);
       
       // Preparar datos para el modal de éxito
       const dataSuccess = {
-        pacienteNombre: resultado.cita.paciente.nombre,
+        pacienteNombre: nombreCompleto,
         doctorNombre: datosCatalogo!.doctorNombre || 'No especificado',
-        fecha: new Date(resultado.cita.fecha).toLocaleDateString('es-MX', {
+        fecha: new Date(cita.fechaCita).toLocaleDateString('es-MX', {
           weekday: 'long',
           year: 'numeric',
           month: 'long',
           day: 'numeric'
         }),
-        hora: resultado.cita.hora,
+        hora: cita.horaCita,
         sucursalNombre: datosCatalogo!.sucursalNombre || 'No especificada',
         servicioNombre: datosCatalogo!.servicioNombre
       };
@@ -164,7 +166,7 @@ export function AgendarCitaModal({
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('citaAgendada', { 
           detail: {
-            ...resultado.cita,
+            ...cita,
             sucursalNombre: datosCatalogo!.sucursalNombre,
             doctorNombre: datosCatalogo!.doctorNombre,
             servicioNombre: datosCatalogo!.servicioNombre

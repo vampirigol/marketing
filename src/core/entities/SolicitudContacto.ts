@@ -61,6 +61,10 @@ export interface SolicitudContacto {
   fechaAsignacion?: Date;
   fechaResolucion?: Date;
   ultimaActualizacion: Date;
+
+  // CRM
+  crmStatus?: string;
+  crmResultado?: string;
 }
 
 /**
@@ -92,6 +96,8 @@ export class SolicitudContactoEntity implements SolicitudContacto {
   fechaAsignacion?: Date;
   fechaResolucion?: Date;
   ultimaActualizacion: Date;
+  crmStatus?: string;
+  crmResultado?: string;
 
   constructor(data: SolicitudContacto) {
     this.id = data.id;
@@ -119,6 +125,8 @@ export class SolicitudContactoEntity implements SolicitudContacto {
     this.fechaAsignacion = data.fechaAsignacion;
     this.fechaResolucion = data.fechaResolucion;
     this.ultimaActualizacion = data.ultimaActualizacion;
+    this.crmStatus = data.crmStatus;
+    this.crmResultado = data.crmResultado;
   }
 
   /**

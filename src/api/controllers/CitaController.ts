@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { CitaRepositoryPostgres } from '../../infrastructure/database/repositories/CitaRepository';
+import Database from '../../infrastructure/database/Database';
+import { AuditoriaRepositoryPostgres } from '../../infrastructure/database/repositories/AuditoriaRepository';
 import { PacienteRepositoryPostgres } from '../../infrastructure/database/repositories/PacienteRepository';
 import { ReagendarPromocionUseCase } from '../../core/use-cases/ReagendarPromocion';
 import { MarcarLlegadaUseCase } from '../../core/use-cases/MarcarLlegada';
@@ -7,10 +9,12 @@ import { MarcarLlegadaUseCase } from '../../core/use-cases/MarcarLlegada';
 export class CitaController {
   private repository: CitaRepositoryPostgres;
   private pacienteRepository: PacienteRepositoryPostgres;
+  private auditoriaRepository: AuditoriaRepositoryPostgres;
 
   constructor() {
     this.repository = new CitaRepositoryPostgres();
     this.pacienteRepository = new PacienteRepositoryPostgres();
+    this.auditoriaRepository = new AuditoriaRepositoryPostgres();
   }
 
   async crear(req: Request, res: Response): Promise<void> {
@@ -58,6 +62,20 @@ export class CitaController {
         horaCita,
         duracionMinutos: sinHorario ? 0 : resultado.cita.duracionMinutos,
         notas: notasSinHorario,
+      });
+
+      await this.auditoriaRepository.registrar({
+        entidad: 'cita',
+        entidadId: cita.id,
+        accion: 'crear',
+        usuarioId: req.user?.id,
+        usuarioNombre: req.user?.username,
+        detalles: {
+          sucursalId: cita.sucursalId,
+          pacienteId: cita.pacienteId,
+          fechaCita: cita.fechaCita,
+          horaCita: cita.horaCita,
+        },
       });
 
       res.status(201).json({
@@ -209,6 +227,121 @@ export class CitaController {
     }
   }
 
+  async obtenerKpi(req: Request, res: Response): Promise<void> {
+    try {
+      const { sucursalId, fechaInicio, fechaFin } = req.query;
+      const filtros: string[] = [];
+      const values: any[] = [];
+      let idx = 1;
+
+      if (sucursalId) {
+        filtros.push(`sucursal_id = $${idx}`);
+        values.push(sucursalId);
+        idx += 1;
+      }
+
+      if (fechaInicio) {
+        filtros.push(`fecha_cita >= $${idx}`);
+        values.push(fechaInicio);
+        idx += 1;
+      }
+
+      if (fechaFin) {
+        filtros.push(`fecha_cita <= $${idx}`);
+        values.push(fechaFin);
+        idx += 1;
+      }
+
+      const whereClause = filtros.length ? `WHERE ${filtros.join(' AND ')}` : '';
+      const pool = Database.getInstance().getPool();
+
+      const query = `
+        SELECT estado, COUNT(*)::int AS total
+        FROM citas
+        ${whereClause}
+        GROUP BY estado
+      `;
+
+      const result = await pool.query(query, values);
+      const totals: Record<string, number> = {};
+      result.rows.forEach((row) => {
+        totals[row.estado] = row.total;
+      });
+
+      const total = Object.values(totals).reduce((acc, val) => acc + val, 0);
+      const confirmadas = totals.Confirmada || 0;
+      const atendidas = totals.Atendida || 0;
+      const noShow = totals.No_Asistio || 0;
+
+      res.json({
+        success: true,
+        rango: { fechaInicio: fechaInicio || null, fechaFin: fechaFin || null },
+        total,
+        confirmadas,
+        atendidas,
+        noShow,
+        tasas: {
+          confirmacion: total > 0 ? Math.round((confirmadas / total) * 100) : 0,
+          asistencia: confirmadas > 0 ? Math.round((atendidas / confirmadas) * 100) : 0,
+          noShow: confirmadas > 0 ? Math.round((noShow / confirmadas) * 100) : 0,
+        },
+      });
+    } catch (error: unknown) {
+      console.error('Error al obtener KPI de citas:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Error al obtener KPI',
+      });
+    }
+  }
+
+  async obtenerAlertasRiesgo(req: Request, res: Response): Promise<void> {
+    try {
+      const { sucursalId } = req.query;
+      const values: any[] = [];
+      let idx = 1;
+      const filtroSucursal = sucursalId ? `AND sucursal_id = $${idx}` : '';
+      if (sucursalId) {
+        values.push(sucursalId);
+        idx += 1;
+      }
+
+      const pool = Database.getInstance().getPool();
+      const pendientesQuery = `
+        SELECT COUNT(*)::int AS total
+        FROM citas
+        WHERE estado = 'Agendada'
+        AND fecha_cita BETWEEN CURRENT_DATE AND (CURRENT_DATE + INTERVAL '1 day')
+        ${filtroSucursal}
+      `;
+      const riesgoQuery = `
+        SELECT COUNT(*)::int AS total
+        FROM citas
+        WHERE estado = 'Agendada'
+        AND fecha_cita = CURRENT_DATE
+        AND hora_cita <= (CURRENT_TIME + INTERVAL '2 hours')
+        ${filtroSucursal}
+      `;
+
+      const [pendientesRes, riesgoRes] = await Promise.all([
+        pool.query(pendientesQuery, values),
+        pool.query(riesgoQuery, values),
+      ]);
+
+      res.json({
+        success: true,
+        pendientesConfirmacion: pendientesRes.rows[0]?.total || 0,
+        riesgoNoShow: riesgoRes.rows[0]?.total || 0,
+      });
+    } catch (error: unknown) {
+      console.error('Error al obtener alertas de riesgo:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Error al obtener alertas',
+      });
+    }
+  }
+
   async actualizar(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
@@ -240,6 +373,15 @@ export class CitaController {
         esPromocion: req.body.esPromocion,
         codigoPromocion: req.body.codigoPromocion,
       } as any);
+
+      await this.auditoriaRepository.registrar({
+        entidad: 'cita',
+        entidadId: id,
+        accion: 'actualizar',
+        usuarioId: req.user?.id,
+        usuarioNombre: req.user?.username,
+        detalles: req.body,
+      });
 
       res.json({
         success: true,
@@ -315,6 +457,20 @@ export class CitaController {
         saldoPendiente: resultado.cita.saldoPendiente,
       });
 
+      await this.auditoriaRepository.registrar({
+        entidad: 'cita',
+        entidadId: id,
+        accion: 'reagendar',
+        usuarioId: req.user?.id,
+        usuarioNombre: req.user?.username,
+        detalles: {
+          nuevaFecha,
+          nuevaHora,
+          motivo,
+          precioRegular,
+        },
+      });
+
       res.json({
         success: true,
         message: resultado.mensaje,
@@ -361,6 +517,17 @@ export class CitaController {
       const citaActualizada = await this.repository.actualizar(id, {
         estado: nuevoEstado,
         horaLlegada: resultado.cita.horaLlegada,
+      });
+
+      await this.auditoriaRepository.registrar({
+        entidad: 'cita',
+        entidadId: id,
+        accion: 'llegada',
+        usuarioId: req.user?.id,
+        usuarioNombre: req.user?.username,
+        detalles: {
+          horaLlegada: req.body.horaLlegada || new Date(),
+        },
       });
 
       res.json({
@@ -455,6 +622,15 @@ export class CitaController {
       const citaActualizada = await this.repository.actualizar(id, {
         estado: 'Cancelada',
         motivoCancelacion: motivo,
+      });
+
+      await this.auditoriaRepository.registrar({
+        entidad: 'cita',
+        entidadId: id,
+        accion: 'cancelar',
+        usuarioId: req.user?.id,
+        usuarioNombre: req.user?.username,
+        detalles: { motivo },
       });
 
       res.json({

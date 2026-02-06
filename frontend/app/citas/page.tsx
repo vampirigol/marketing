@@ -22,6 +22,9 @@ import { SidebarDiaDetalle } from '@/components/citas/SidebarDiaDetalle';
 import { Button } from '@/components/ui/Button';
 import { Cita } from '@/types';
 import { DOCTORES } from '@/lib/doctores-data';
+import { citasService } from '@/lib/citas.service';
+import { pacientesService } from '@/lib/pacientes.service';
+import { obtenerSucursales, SucursalApi } from '@/lib/sucursales.service';
 import {
   Plus,
   Calendar,
@@ -75,6 +78,19 @@ export default function CitasPage() {
   const [fechaSidebarSeleccionada, setFechaSidebarSeleccionada] = useState<Date | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [sucursalActual, setSucursalActual] = useState('Guadalajara');
+  const [sucursales, setSucursales] = useState<SucursalApi[]>([]);
+  const [sucursalIdActual, setSucursalIdActual] = useState<string | null>(null);
+  const [kpi, setKpi] = useState<{
+    total: number;
+    confirmadas: number;
+    atendidas: number;
+    noShow: number;
+    tasas: { confirmacion: number; asistencia: number; noShow: number };
+  } | null>(null);
+  const [alertasRiesgo, setAlertasRiesgo] = useState<{
+    pendientesConfirmacion: number;
+    riesgoNoShow: number;
+  } | null>(null);
 
   const automatizacionesDemo = [
     {
@@ -100,9 +116,16 @@ export default function CitasPage() {
     'Empalmes permitidos por médico',
   ];
 
-  // Cargar citas demo al montar
   useEffect(() => {
-    cargarCitasDemo();
+    const cargarSucursales = async () => {
+      try {
+        const data = await obtenerSucursales(true);
+        setSucursales(data);
+      } catch (error) {
+        console.error('Error cargando sucursales:', error);
+      }
+    };
+    cargarSucursales();
   }, []);
 
   // Cargar sucursal desde localStorage
@@ -112,6 +135,148 @@ export default function CitasPage() {
       setSucursalActual(savedSucursal);
     }
   }, []);
+
+  useEffect(() => {
+    if (!sucursales.length) return;
+    const matched = sucursales.find((s) => s.nombre === sucursalActual) || sucursales[0];
+    setSucursalIdActual(matched?.id || null);
+  }, [sucursales, sucursalActual]);
+
+  const mapTipoConsulta = (tipo: string) => {
+    if (tipo === 'Primera_Vez') return 'Primera Vez';
+    if (tipo === 'Subsecuente') return 'Subsecuente';
+    if (tipo === 'Urgencia') return 'Urgencia';
+    return tipo;
+  };
+
+  const mapCitaBackend = (citaBackend: any, paciente: any, sucursalNombre: string): Cita => ({
+    id: citaBackend.id,
+    pacienteId: citaBackend.pacienteId,
+    pacienteNombre: paciente?.nombreCompleto || 'Paciente',
+    pacienteTelefono: paciente?.telefono || '',
+    pacienteEmail: paciente?.email || '',
+    pacienteNoAfiliacion: paciente?.noAfiliacion || '',
+    sucursalId: citaBackend.sucursalId,
+    sucursalNombre,
+    fechaCita: new Date(citaBackend.fechaCita),
+    horaCita: citaBackend.horaCita,
+    duracionMinutos: citaBackend.duracionMinutos || 30,
+    tipoConsulta: mapTipoConsulta(citaBackend.tipoConsulta || 'Primera_Vez'),
+    especialidad: citaBackend.especialidad || 'Medicina General',
+    medicoAsignado: citaBackend.medicoAsignado || 'Doctor',
+    estado: citaBackend.estado || 'Agendada',
+    esPromocion: Boolean(citaBackend.esPromocion),
+    reagendaciones: citaBackend.reagendaciones || 0,
+    costoConsulta: citaBackend.costoConsulta || 0,
+    montoAbonado: citaBackend.montoAbonado || 0,
+    saldoPendiente: citaBackend.saldoPendiente || 0,
+    fechaCreacion: new Date(citaBackend.fechaCreacion || new Date()),
+    ultimaActualizacion: new Date(citaBackend.ultimaActualizacion || new Date()),
+    motivoCancelacion: citaBackend.motivoCancelacion,
+  });
+
+  const cargarCitas = async () => {
+    if (!sucursalIdActual) return;
+
+    const fechaBase = new Date(fechaSeleccionada);
+    let inicio = new Date(fechaBase);
+    let fin = new Date(fechaBase);
+
+    if (vista === 'semana') {
+      const dia = inicio.getDay();
+      const diff = inicio.getDate() - dia + (dia === 0 ? -6 : 1);
+      inicio.setDate(diff);
+      inicio.setHours(0, 0, 0, 0);
+      fin = new Date(inicio);
+      fin.setDate(inicio.getDate() + 6);
+    } else if (vista === 'mes') {
+      inicio = new Date(fechaBase.getFullYear(), fechaBase.getMonth(), 1);
+      fin = new Date(fechaBase.getFullYear(), fechaBase.getMonth() + 1, 0);
+    }
+
+    const fechas: Date[] = [];
+    const cursor = new Date(inicio);
+    while (cursor <= fin) {
+      fechas.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    try {
+      const citasPorDia = await Promise.all(
+        fechas.map((fecha) =>
+          citasService.obtenerPorSucursalYFecha(
+            sucursalIdActual,
+            fecha.toISOString().split('T')[0]
+          )
+        )
+      );
+
+      const citasBackend = citasPorDia.flat();
+      const pacienteIds = Array.from(new Set(citasBackend.map((c: any) => c.pacienteId)));
+      const pacientes = await Promise.all(
+        pacienteIds.map((id) => pacientesService.obtenerPorId(id).catch(() => null))
+      );
+      const pacientesMap = new Map(pacientes.filter(Boolean).map((p: any) => [p.id, p]));
+
+      const sucursalNombre = sucursales.find((s) => s.id === sucursalIdActual)?.nombre || 'Sucursal';
+      const citasMapped = citasBackend.map((cita: any) =>
+        mapCitaBackend(cita, pacientesMap.get(cita.pacienteId), sucursalNombre)
+      );
+
+      setCitas(citasMapped);
+    } catch (error) {
+      console.error('Error cargando citas:', error);
+    }
+  };
+
+  const cargarKpi = async () => {
+    if (!sucursalIdActual) return;
+    const fechaBase = new Date(fechaSeleccionada);
+    let inicio = new Date(fechaBase);
+    let fin = new Date(fechaBase);
+
+    if (vista === 'semana') {
+      const dia = inicio.getDay();
+      const diff = inicio.getDate() - dia + (dia === 0 ? -6 : 1);
+      inicio.setDate(diff);
+      inicio.setHours(0, 0, 0, 0);
+      fin = new Date(inicio);
+      fin.setDate(inicio.getDate() + 6);
+    } else if (vista === 'mes') {
+      inicio = new Date(fechaBase.getFullYear(), fechaBase.getMonth(), 1);
+      fin = new Date(fechaBase.getFullYear(), fechaBase.getMonth() + 1, 0);
+    }
+
+    try {
+      const data = await citasService.obtenerKpi({
+        sucursalId: sucursalIdActual,
+        fechaInicio: inicio.toISOString().split('T')[0],
+        fechaFin: fin.toISOString().split('T')[0],
+      });
+      setKpi(data);
+    } catch (error) {
+      console.error('Error cargando KPI de citas:', error);
+    }
+  };
+
+  const cargarAlertasRiesgo = async () => {
+    if (!sucursalIdActual) return;
+    try {
+      const data = await citasService.obtenerAlertasRiesgo({
+        sucursalId: sucursalIdActual,
+      });
+      setAlertasRiesgo(data);
+    } catch (error) {
+      console.error('Error cargando alertas de riesgo:', error);
+    }
+  };
+
+  useEffect(() => {
+    cargarCitas();
+    cargarKpi();
+    cargarAlertasRiesgo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sucursalIdActual, vista, fechaSeleccionada]);
 
   // Limpiar doctores seleccionados si no pertenecen a la sucursal actual
   useEffect(() => {
@@ -156,125 +321,13 @@ export default function CitasPage() {
 
   // Escuchar evento de cita agendada para actualizar la lista
   useEffect(() => {
-    const handleCitaAgendada = (event: any) => {
-      const citaBackend = event.detail;
-      
-      // Convertir la cita del backend al formato del frontend
-      const nuevaCita: Cita = {
-        id: citaBackend.id || `cita-${Date.now()}`,
-        pacienteId: citaBackend.paciente?.id || citaBackend.pacienteId,
-        pacienteNombre: citaBackend.paciente?.nombre || citaBackend.pacienteNombre,
-        pacienteTelefono: citaBackend.paciente?.telefono || citaBackend.pacienteTelefono || '',
-        pacienteEmail: citaBackend.paciente?.email || citaBackend.pacienteEmail || '',
-        pacienteNoAfiliacion: citaBackend.paciente?.noAfiliacion || `RCA-${Date.now()}`,
-        sucursalId: citaBackend.sucursalId,
-        sucursalNombre: citaBackend.sucursalNombre || 'Sucursal',
-        fechaCita: new Date(citaBackend.fecha),
-        horaCita: citaBackend.hora,
-        duracionMinutos: citaBackend.duracionMinutos || 30,
-        tipoConsulta: citaBackend.tipoConsulta || 'Primera Vez',
-        especialidad: citaBackend.especialidad || 'Medicina General',
-        medicoAsignado: citaBackend.doctorNombre || citaBackend.medicoAsignado || 'Doctor',
-        estado: 'Agendada',
-        esPromocion: citaBackend.promocionAplicada || false,
-        reagendaciones: 0,
-        costoConsulta: citaBackend.precio || 500,
-        montoAbonado: 0,
-        saldoPendiente: citaBackend.precio || 500,
-        fechaCreacion: new Date(),
-        ultimaActualizacion: new Date()
-      };
-      
-      // Agregar la nueva cita al estado
-      setCitas(prev => [nuevaCita, ...prev]);
-      
-      console.log('✅ Cita agregada al calendario:', nuevaCita);
+    const handleCitaAgendada = () => {
+      cargarCitas();
     };
 
     window.addEventListener('citaAgendada', handleCitaAgendada);
     return () => window.removeEventListener('citaAgendada', handleCitaAgendada);
-  }, []);
-
-  const cargarCitasDemo = () => {
-    // Generar citas demo para los próximos 7 días
-    const citasDemo: Cita[] = [];
-    const hoy = new Date();
-
-    for (let dia = 0; dia < 7; dia++) {
-      const fecha = new Date(hoy);
-      fecha.setDate(hoy.getDate() + dia);
-
-      // 8-12 citas por día
-      const numCitas = Math.floor(Math.random() * 5) + 8;
-
-      for (let i = 0; i < numCitas; i++) {
-        const hora = Math.floor(Math.random() * 11) + 8; // 8-18
-        const minuto = Math.random() > 0.5 ? 0 : 30;
-        const horaCita = `${hora.toString().padStart(2, '0')}:${minuto.toString().padStart(2, '0')}`;
-
-        const estados: Cita['estado'][] = [
-          'Agendada',
-          'Pendiente_Confirmacion',
-          'Confirmada',
-          'Reagendada',
-          'Llegó',
-          'En_Atencion',
-          'En_Espera',
-          'Finalizada',
-          'Cancelada',
-          'Inasistencia',
-          'Perdido'
-        ];
-        const tiposConsulta = ['Primera Vez', 'Subsecuente', 'Urgencia', 'Control'];
-        const medicos = ['Dr. López', 'Dra. Ramírez', 'Dr. González', 'Dra. Torres'];
-        const sucursales = [
-          { id: 'suc-1', nombre: 'Guadalajara' },
-          { id: 'suc-2', nombre: 'Ciudad Juárez' },
-          { id: 'suc-3', nombre: 'Ciudad Obregón' }
-        ];
-        const nombres = [
-          'María González', 'Pedro López', 'Ana Martínez', 'Carlos Rodríguez',
-          'Laura Fernández', 'Juan Sánchez', 'Sofia Torres', 'Diego Ramírez',
-          'Valentina Pérez', 'Mateo García'
-        ];
-
-        const esPromocion = Math.random() > 0.7;
-        const tipoConsulta = tiposConsulta[Math.floor(Math.random() * tiposConsulta.length)];
-        const costoConsulta = esPromocion ? 250 : 500;
-        const montoAbonado = Math.random() > 0.3 ? costoConsulta : Math.floor(costoConsulta / 2);
-        const sucursal = sucursales[Math.floor(Math.random() * sucursales.length)];
-
-        const cita: Cita = {
-          id: `cita-${dia}-${i}`,
-          pacienteId: `pac-${Math.floor(Math.random() * 100)}`,
-          pacienteNombre: nombres[Math.floor(Math.random() * nombres.length)],
-          pacienteTelefono: `555-${Math.floor(Math.random() * 9000 + 1000)}`,
-          pacienteEmail: 'paciente@email.com',
-          pacienteNoAfiliacion: `RCA-2024-${String(Math.floor(Math.random() * 9000 + 1000)).padStart(4, '0')}`,
-          sucursalId: sucursal.id,
-          sucursalNombre: sucursal.nombre,
-          fechaCita: fecha,
-          horaCita,
-          duracionMinutos: tipoConsulta === 'Primera Vez' ? 45 : 30,
-          tipoConsulta,
-          especialidad: 'Medicina General',
-          medicoAsignado: medicos[Math.floor(Math.random() * medicos.length)],
-          estado: estados[Math.floor(Math.random() * estados.length)],
-          esPromocion,
-          reagendaciones: Math.random() > 0.85 ? Math.floor(Math.random() * 2) + 1 : 0,
-          costoConsulta,
-          montoAbonado,
-          saldoPendiente: costoConsulta - montoAbonado,
-          fechaCreacion: new Date(),
-          ultimaActualizacion: new Date()
-        };
-
-        citasDemo.push(cita);
-      }
-    }
-
-    setCitas(citasDemo);
-  };
+  }, [sucursalIdActual, vista, fechaSeleccionada]);
 
   // Filtrar citas según filtros aplicados
   const citasFiltradas = citas.filter((cita) => {
@@ -335,22 +388,19 @@ export default function CitasPage() {
     setModalAbierto(true);
   };
 
-  const handleConfirmar = (citaId: string) => {
-    setCitas(prev => prev.map(c =>
-      c.id === citaId ? { ...c, estado: 'Confirmada' as const } : c
-    ));
+  const handleConfirmar = async (citaId: string) => {
+    await citasService.actualizar(citaId, { estado: 'Confirmada' as any });
+    cargarCitas();
   };
 
-  const handleMarcarLlegada = (citaId: string) => {
-    setCitas(prev => prev.map(c =>
-      c.id === citaId ? { ...c, estado: 'Llegó' as const } : c
-    ));
+  const handleMarcarLlegada = async (citaId: string) => {
+    await citasService.marcarLlegada(citaId);
+    cargarCitas();
   };
 
-  const handleCancelar = (citaId: string, motivo?: string) => {
-    setCitas(prev => prev.map(c =>
-      c.id === citaId ? { ...c, estado: 'Cancelada' as const, motivoCancelacion: motivo || 'Sin motivo' } : c
-    ));
+  const handleCancelar = async (citaId: string, motivo?: string) => {
+    await citasService.cancelar(citaId, motivo || 'Cancelada');
+    cargarCitas();
   };
 
   // Quick actions
@@ -370,31 +420,13 @@ export default function CitasPage() {
   };
 
   // Drag & Drop para reagendar
-  const handleDragCita = (citaId: string, nuevaFecha: Date, nuevaHora: string) => {
-    setCitas(prev => prev.map(c => {
-      if (c.id !== citaId) return c;
-
-      const reagendacionesPrevias = c.reagendaciones || 0;
-      const nuevaReagendacion = reagendacionesPrevias + 1;
-      const pierdePromocion = c.esPromocion && reagendacionesPrevias >= 1;
-
-      return {
-        ...c,
-        fechaCita: nuevaFecha,
-        horaCita: nuevaHora,
-        reagendaciones: nuevaReagendacion,
-        esPromocion: pierdePromocion ? false : c.esPromocion,
-        estado: 'Reagendada',
-        notas: pierdePromocion
-          ? 'Reagendada: promoción agotada'
-          : 'Reagendada: promoción aplicada'
-      };
-    }));
-
-    const cita = citas.find(c => c.id === citaId);
-    if (cita) {
-      console.log(`✅ Cita reagendada: ${cita.pacienteNombre} - ${nuevaFecha.toLocaleDateString('es-MX')} ${nuevaHora}`);
-    }
+  const handleDragCita = async (citaId: string, nuevaFecha: Date, nuevaHora: string) => {
+    await citasService.reagendar(citaId, {
+      nuevaFecha,
+      nuevaHora,
+      motivo: 'Reagendada desde calendario',
+    });
+    cargarCitas();
   };
 
   // Funciones de exportación
@@ -449,9 +481,9 @@ export default function CitasPage() {
       const query = searchQuery.toLowerCase();
       const matches = 
         cita.pacienteNombre.toLowerCase().includes(query) ||
-        cita.doctor.toLowerCase().includes(query) ||
+        (cita.medicoAsignado || '').toLowerCase().includes(query) ||
         cita.especialidad.toLowerCase().includes(query) ||
-        cita.sucursal?.toLowerCase().includes(query) ||
+        (cita.sucursalNombre || '').toLowerCase().includes(query) ||
         cita.pacienteTelefono?.toLowerCase().includes(query);
       
       if (!matches) return false;
@@ -459,7 +491,7 @@ export default function CitasPage() {
 
     // Filtro de doctores seleccionados
     if (selectedDoctores.length > 0) {
-      const doctor = DOCTORES.find(d => d.nombre === cita.doctor || d.nombre === cita.medicoAsignado);
+      const doctor = DOCTORES.find(d => d.nombre === cita.medicoAsignado);
       if (!doctor || !selectedDoctores.includes(doctor.id)) {
         return false;
       }
@@ -472,11 +504,7 @@ export default function CitasPage() {
   const estadisticas = {
     total: citasFiltradasCompleto.length,
     confirmadas: citasFiltradasCompleto.filter(c => c.estado === 'Confirmada').length,
-    pendientes: citasFiltradasCompleto.filter(c =>
-      c.estado === 'Agendada' ||
-      c.estado === 'Pendiente_Confirmacion' ||
-      c.estado === 'Reagendada'
-    ).length,
+    pendientes: citasFiltradasCompleto.filter(c => c.estado === 'Agendada').length,
     promociones: citasFiltradasCompleto.filter(c => c.esPromocion).length,
     saldoPendiente: citasFiltradasCompleto.reduce((acc, c) => acc + c.saldoPendiente, 0)
   };
@@ -621,17 +649,16 @@ export default function CitasPage() {
           </div>
         </div>
 
-        {/* Advertencia Demo */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        {/* Estado de datos */}
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
           <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600" />
+            <AlertCircle className="w-5 h-5 text-emerald-600" />
             <div>
-              <p className="text-sm font-medium text-yellow-900">
-                Modo Demo - Datos Simulados
+              <p className="text-sm font-medium text-emerald-900">
+                Datos en vivo
               </p>
-              <p className="text-xs text-yellow-700 mt-1">
-                Mostrando citas de ejemplo generadas automáticamente para los próximos 7 días.
-                Los cambios no se guardan en la base de datos.
+              <p className="text-xs text-emerald-700 mt-1">
+                Agenda conectada a base de datos con disponibilidad y promociones reales.
               </p>
             </div>
           </div>
@@ -731,6 +758,27 @@ export default function CitasPage() {
           </div>
         </div>
 
+        {/* KPI de citas */}
+        {kpi && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <p className="text-xs text-gray-500">Confirmación</p>
+              <p className="text-2xl font-bold text-gray-900">{kpi.tasas.confirmacion}%</p>
+              <p className="text-xs text-gray-400">{kpi.confirmadas} confirmadas de {kpi.total}</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <p className="text-xs text-gray-500">Asistencia</p>
+              <p className="text-2xl font-bold text-emerald-600">{kpi.tasas.asistencia}%</p>
+              <p className="text-xs text-gray-400">{kpi.atendidas} atendidas</p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
+              <p className="text-xs text-gray-500">No-show</p>
+              <p className="text-2xl font-bold text-red-600">{kpi.tasas.noShow}%</p>
+              <p className="text-xs text-gray-400">{kpi.noShow} no asistieron</p>
+            </div>
+          </div>
+        )}
+
         {/* Automatizaciones y reglas */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="bg-white border border-gray-200 rounded-xl p-5">
@@ -765,11 +813,13 @@ export default function CitasPage() {
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-blue-900 mb-2">Alertas activas</h3>
             <p className="text-xs text-blue-700">
-              Se muestran 8 citas con confirmación pendiente y 3 con riesgo de inasistencia.
+              {alertasRiesgo
+                ? `Se muestran ${alertasRiesgo.pendientesConfirmacion} citas con confirmación pendiente y ${alertasRiesgo.riesgoNoShow} con riesgo de inasistencia.`
+                : 'Cargando alertas en tiempo real...'}
             </p>
             <div className="mt-3 flex items-center gap-2 text-xs text-blue-800">
               <span className="inline-flex h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
-              Monitoreo en tiempo real (demo)
+              Monitoreo en tiempo real
             </div>
           </div>
         </div>
@@ -788,7 +838,20 @@ export default function CitasPage() {
               </button>
             )}
           </div>
-          <CitasFilters onFilterChange={setFilters} />
+          <CitasFilters
+            onFilterChange={setFilters}
+            sucursales={sucursales.map((s) => ({ id: s.id, nombre: s.nombre }))}
+            medicos={Array.from(new Set(citas.map((c) => c.medicoAsignado).filter(Boolean)))}
+            estados={[
+              { value: 'Agendada', label: 'Agendada' },
+              { value: 'Confirmada', label: 'Confirmada' },
+              { value: 'En_Consulta', label: 'En Consulta' },
+              { value: 'Atendida', label: 'Atendida' },
+              { value: 'Cancelada', label: 'Cancelada' },
+              { value: 'No_Asistio', label: 'No Asistió' },
+            ]}
+            tiposConsulta={['Primera Vez', 'Subsecuente', 'Urgencia']}
+          />
         </div>
 
         {/* Layout principal con calendario lateral */}

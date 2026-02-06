@@ -186,8 +186,25 @@ export class CitaRepositoryPostgres implements CitaRepository {
   }
 
   async obtenerPaciente(pacienteId: string): Promise<any> {
-    // TODO: Implementar obtención de paciente
-    return { id: pacienteId, nombre: 'Paciente', canalPreferido: 'whatsapp' };
+    const query = `
+      SELECT id, nombre_completo, telefono, whatsapp, origen_lead
+      FROM pacientes
+      WHERE id = $1
+    `;
+    const result = await this.pool.query(query, [pacienteId]);
+    if (result.rows.length === 0) {
+      return { id: pacienteId, nombre: 'Paciente', canalPreferido: 'whatsapp' };
+    }
+    const row = result.rows[0];
+    const canalPreferido = row.whatsapp || row.telefono ? 'whatsapp' : 'email';
+    return {
+      id: row.id,
+      nombre: row.nombre_completo,
+      telefono: row.telefono,
+      whatsapp: row.whatsapp,
+      origenLead: row.origen_lead,
+      canalPreferido,
+    };
   }
 }
 

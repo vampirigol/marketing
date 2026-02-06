@@ -17,6 +17,9 @@ interface AutomationRuleBuilderProps {
   isLoading?: boolean;
 }
 
+const ROLE_OPTIONS = ['Admin', 'Contact_Center', 'Recepcion', 'Medico', 'Finanzas'] as const;
+type RoleOption = typeof ROLE_OPTIONS[number];
+
 export function AutomationRuleBuilder({
   reglaExistente,
   onSave,
@@ -26,6 +29,23 @@ export function AutomationRuleBuilder({
   const [nombre, setNombre] = useState(reglaExistente?.nombre || '');
   const [descripcion, setDescripcion] = useState(reglaExistente?.descripcion || '');
   const [activa, setActiva] = useState(reglaExistente?.activa ?? true);
+  const [prioridad, setPrioridad] = useState(reglaExistente?.prioridad || 'media');
+  const [sucursalScope, setSucursalScope] = useState(reglaExistente?.sucursalScope || 'Todas');
+  const [categoria, setCategoria] = useState(reglaExistente?.categoria || 'Comunicación con el cliente');
+  const [horario, setHorario] = useState(reglaExistente?.horario || { dias: ['Lun', 'Mar', 'Mie', 'Jue', 'Vie'], inicio: '08:00', fin: '19:00' });
+  const [slaPorEtapa, setSlaPorEtapa] = useState(
+    reglaExistente?.slaPorEtapa || { new: 2, reviewing: 6, 'in-progress': 12, open: 24, qualified: 24 }
+  );
+  const [pausaActiva, setPausaActiva] = useState(Boolean(reglaExistente?.pausa));
+  const [pausa, setPausa] = useState(
+    reglaExistente?.pausa || { tipo: 'sucursal' as const, id: '', desde: '', hasta: '' }
+  );
+  const [rolesPermitidos, setRolesPermitidos] = useState<RoleOption[]>(
+    reglaExistente?.rolesPermitidos || []
+  );
+  const [abTest, setAbTest] = useState(
+    reglaExistente?.abTest || { enabled: false, ratio: 50, variantA: 'Mensaje A', variantB: 'Mensaje B' }
+  );
   const [condiciones, setCondiciones] = useState<AutomationCondition[]>(
     reglaExistente?.condiciones || []
   );
@@ -103,25 +123,58 @@ export function AutomationRuleBuilder({
     let regla: AutomationRule;
 
     if (reglaExistente) {
-      regla = actualizarRegla(reglaExistente.id, {
+      regla = await actualizarRegla(reglaExistente.id, {
         nombre,
         descripcion,
         activa,
+        categoria,
+        prioridad,
+        rolesPermitidos: rolesPermitidos?.length ? rolesPermitidos : undefined,
+        abTest: abTest.enabled ? abTest : undefined,
+        sucursalScope: sucursalScope === 'Todas' ? undefined : sucursalScope,
+        horario,
+        slaPorEtapa,
+        pausa: pausaActiva ? pausa : undefined,
         condiciones,
         acciones
       }) || reglaExistente;
     } else {
-      regla = crearRegla({
+      regla = await crearRegla({
         nombre,
         descripcion,
         activa,
+        categoria,
+        prioridad,
+        rolesPermitidos: rolesPermitidos?.length ? rolesPermitidos : undefined,
+        abTest: abTest.enabled ? abTest : undefined,
+        sucursalScope: sucursalScope === 'Todas' ? undefined : sucursalScope,
+        horario,
+        slaPorEtapa,
+        pausa: pausaActiva ? pausa : undefined,
         condiciones,
         acciones
       });
     }
 
     onSave(regla);
-  }, [nombre, descripcion, activa, condiciones, acciones, reglaExistente, onSave]);
+  }, [
+    nombre,
+    descripcion,
+    activa,
+    categoria,
+    prioridad,
+    rolesPermitidos,
+    abTest,
+    sucursalScope,
+    horario,
+    slaPorEtapa,
+    pausaActiva,
+    pausa,
+    condiciones,
+    acciones,
+    reglaExistente,
+    onSave,
+  ]);
 
   const toggleSection = (section: 'condiciones' | 'acciones') => {
     setExpandedSections(prev => ({
@@ -180,6 +233,250 @@ export function AutomationRuleBuilder({
             />
             <span className="text-sm font-medium text-gray-700">Regla activa</span>
           </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Prioridad</label>
+              <select
+                value={prioridad}
+                onChange={(e) => setPrioridad(e.target.value as 'alta' | 'media' | 'baja')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="alta">Alta</option>
+                <option value="media">Media</option>
+                <option value="baja">Baja</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Sucursal</label>
+              <select
+                value={sucursalScope}
+                onChange={(e) => setSucursalScope(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Todas">Todas</option>
+                {opcionesCondiciones.sucursales?.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Categoría</label>
+            <select
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {[
+                'Nuevas reglas de automatización y disparadores',
+                'Elementos recientes',
+                'Comunicación con el cliente',
+                'Alertas para los empleados',
+                'Monitoreo y control de los empleados',
+                'Papeleo',
+                'Pago',
+                'Entrega',
+                'Ventas recurrentes',
+                'Anuncios',
+                'Administrar los elementos del flujo de trabajo',
+                'Información del cliente',
+                'Productos',
+                'Administración de tareas',
+                'Almacenamiento y modificación de los datos',
+                'Automatización del flujo de trabajo',
+                'Otro',
+              ].map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Horario laboral</label>
+              <div className="flex flex-wrap gap-2">
+                {['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'].map((dia) => (
+                  <label key={dia} className="flex items-center gap-1 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={horario.dias.includes(dia)}
+                      onChange={(e) => {
+                        setHorario((prev) => ({
+                          ...prev,
+                          dias: e.target.checked
+                            ? [...prev.dias, dia]
+                            : prev.dias.filter((d) => d !== dia),
+                        }));
+                      }}
+                      className="w-3 h-3 accent-blue-500"
+                    />
+                    {dia}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Inicio</label>
+                <input
+                  type="time"
+                  value={horario.inicio}
+                  onChange={(e) => setHorario((prev) => ({ ...prev, inicio: e.target.value }))}
+                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Fin</label>
+                <input
+                  type="time"
+                  value={horario.fin}
+                  onChange={(e) => setHorario((prev) => ({ ...prev, fin: e.target.value }))}
+                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">SLA por etapa (horas)</label>
+            <div className="grid grid-cols-5 gap-2 text-xs">
+              {[
+                { id: 'new', label: 'Lead' },
+                { id: 'reviewing', label: 'Prospecto' },
+                { id: 'in-progress', label: 'Cita' },
+                { id: 'open', label: 'Confirmada' },
+                { id: 'qualified', label: 'Cierre' },
+              ].map((etapa) => (
+                <div key={etapa.id}>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">{etapa.label}</label>
+                  <input
+                    type="number"
+                    value={slaPorEtapa?.[etapa.id as keyof typeof slaPorEtapa] ?? ''}
+                    onChange={(e) =>
+                      setSlaPorEtapa((prev) => ({
+                        ...prev,
+                        [etapa.id]: e.target.value === '' ? undefined : Number(e.target.value),
+                      }))
+                    }
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border rounded-lg p-3 bg-amber-50/60">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <input
+                type="checkbox"
+                checked={pausaActiva}
+                onChange={(e) => setPausaActiva(e.target.checked)}
+                className="w-4 h-4 accent-amber-500"
+              />
+              Pausar por vacaciones
+            </label>
+            {pausaActiva && (
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <select
+                  value={pausa.tipo}
+                  onChange={(e) => setPausa((prev) => ({ ...prev, tipo: e.target.value as 'sucursal' | 'asesor' }))}
+                  className="px-2 py-1 border border-amber-200 rounded"
+                >
+                  <option value="sucursal">Sucursal</option>
+                  <option value="asesor">Asesor</option>
+                </select>
+                <input
+                  type="text"
+                  value={pausa.id}
+                  onChange={(e) => setPausa((prev) => ({ ...prev, id: e.target.value }))}
+                  placeholder="ID o nombre"
+                  className="px-2 py-1 border border-amber-200 rounded"
+                />
+                <input
+                  type="date"
+                  value={pausa.desde}
+                  onChange={(e) => setPausa((prev) => ({ ...prev, desde: e.target.value }))}
+                  className="px-2 py-1 border border-amber-200 rounded"
+                />
+                <input
+                  type="date"
+                  value={pausa.hasta}
+                  onChange={(e) => setPausa((prev) => ({ ...prev, hasta: e.target.value }))}
+                  className="px-2 py-1 border border-amber-200 rounded"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Roles permitidos</label>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {ROLE_OPTIONS.map((rol) => (
+                  <label key={rol} className="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={rolesPermitidos?.includes(rol)}
+                      onChange={(e) => {
+                        setRolesPermitidos((prev) => {
+                          const current = prev || [];
+                          if (e.target.checked) return [...current, rol];
+                          return current.filter((item) => item !== rol);
+                        });
+                      }}
+                      className="w-3 h-3 accent-blue-500"
+                    />
+                    {rol}
+                  </label>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1">Si no seleccionas ninguno, aplica a todos.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">A/B Testing (mensajes)</label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={abTest.enabled}
+                  onChange={(e) => setAbTest((prev) => ({ ...prev, enabled: e.target.checked }))}
+                  className="w-4 h-4 accent-purple-500"
+                />
+                Activar A/B
+              </label>
+              {abTest.enabled && (
+                <div className="mt-2 space-y-2">
+                  <input
+                    type="text"
+                    value={abTest.variantA}
+                    onChange={(e) => setAbTest((prev) => ({ ...prev, variantA: e.target.value }))}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                    placeholder="Mensaje variante A"
+                  />
+                  <input
+                    type="text"
+                    value={abTest.variantB}
+                    onChange={(e) => setAbTest((prev) => ({ ...prev, variantB: e.target.value }))}
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                    placeholder="Mensaje variante B"
+                  />
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <span>Ratio A</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={abTest.ratio}
+                      onChange={(e) => setAbTest((prev) => ({ ...prev, ratio: Number(e.target.value) }))}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-xs"
+                    />
+                    <span>%</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Condiciones */}
@@ -288,6 +585,26 @@ interface CondicionBuilderProps {
 
 function CondicionBuilder({ condicion, opciones, onUpdate, onDelete }: CondicionBuilderProps) {
   const operadoresDisponibles = opciones.operadores[condicion.type as keyof typeof opciones.operadores] || [];
+  const selectOptions =
+    condicion.type === 'canal'
+      ? opciones.canales
+      : condicion.type === 'estado'
+      ? opciones.estados
+      : condicion.type === 'sucursal'
+      ? opciones.sucursales
+      : condicion.type === 'campana'
+      ? opciones.campanas
+      : condicion.type === 'servicio'
+      ? opciones.servicios
+      : condicion.type === 'origen'
+      ? opciones.origenes
+      : null;
+  const isNumeric =
+    condicion.type === 'time-in-status' ||
+    condicion.type === 'valor-leads' ||
+    condicion.type === 'intentos' ||
+    condicion.type === 'dias-sin-respuesta' ||
+    condicion.type === 'ventana-mensajeria';
 
   return (
     <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 space-y-2">
@@ -326,31 +643,21 @@ function CondicionBuilder({ condicion, opciones, onUpdate, onDelete }: Condicion
         </select>
 
         {/* Valor */}
-        {condicion.type === 'canal' ? (
+        {selectOptions ? (
           <select
             value={String(condicion.value)}
             onChange={(e) => onUpdate({ value: e.target.value })}
             className="px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {opciones.canales.map(c => (
+            {selectOptions.map((c) => (
               <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        ) : condicion.type === 'estado' ? (
-          <select
-            value={String(condicion.value)}
-            onChange={(e) => onUpdate({ value: e.target.value })}
-            className="px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {opciones.estados.map(s => (
-              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         ) : (
           <input
-            type={condicion.type === 'time-in-status' || condicion.type === 'valor-leads' ? 'number' : 'text'}
+            type={isNumeric ? 'number' : 'text'}
             value={String(condicion.value)}
-            onChange={(e) => onUpdate({ value: condicion.type === 'valor-leads' ? parseFloat(e.target.value) : e.target.value })}
+            onChange={(e) => onUpdate({ value: isNumeric ? parseFloat(e.target.value) : e.target.value })}
             placeholder="Valor..."
             className="px-2 py-1 border border-blue-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />

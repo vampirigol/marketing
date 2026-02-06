@@ -3,6 +3,8 @@
  * Gestión de usuarios del sistema con autenticación
  */
 
+import { Pool } from 'pg';
+import Database from '../Database';
 import { UsuarioSistema, UsuarioSistemaEntity, Rol } from '../../../core/entities/UsuarioSistema';
 
 export interface IUsuarioSistemaRepository {
@@ -18,6 +20,185 @@ export interface IUsuarioSistemaRepository {
   suspender(id: string): Promise<UsuarioSistema | null>;
   activar(id: string): Promise<UsuarioSistema | null>;
   registrarAcceso(id: string): Promise<void>;
+}
+
+/**
+ * Implementación PostgreSQL
+ */
+export class UsuarioSistemaRepositoryPostgres implements IUsuarioSistemaRepository {
+  private pool: Pool;
+
+  constructor() {
+    this.pool = Database.getInstance().getPool();
+  }
+
+  async crear(usuario: UsuarioSistema): Promise<UsuarioSistema> {
+    const query = `
+      INSERT INTO usuarios (
+        username, nombre_completo, email, telefono, password_hash, rol, permisos,
+        sucursal_asignada, sucursales_acceso, activo, creado_por
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING *
+    `;
+
+    const values = [
+      usuario.username,
+      usuario.nombreCompleto,
+      usuario.email,
+      usuario.telefono || '',
+      usuario.password,
+      usuario.rol,
+      JSON.stringify(usuario.permisos || []),
+      usuario.sucursalId || null,
+      usuario.sucursalId ? [usuario.sucursalId] : [],
+      usuario.estado === 'Activo',
+      this.toUuidOrNull(usuario.creadoPor),
+    ];
+
+    const result = await this.pool.query(query, values);
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerPorId(id: string): Promise<UsuarioSistema | null> {
+    const result = await this.pool.query('SELECT * FROM usuarios WHERE id = $1', [id]);
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerPorUsername(username: string): Promise<UsuarioSistema | null> {
+    const result = await this.pool.query(
+      'SELECT * FROM usuarios WHERE username = $1 OR email = $1 LIMIT 1',
+      [username]
+    );
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerPorEmail(email: string): Promise<UsuarioSistema | null> {
+    const result = await this.pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerTodos(): Promise<UsuarioSistema[]> {
+    const result = await this.pool.query('SELECT * FROM usuarios ORDER BY nombre_completo');
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerPorRol(rol: Rol): Promise<UsuarioSistema[]> {
+    const result = await this.pool.query('SELECT * FROM usuarios WHERE rol = $1', [rol]);
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerPorSucursal(sucursalId: string): Promise<UsuarioSistema[]> {
+    const result = await this.pool.query('SELECT * FROM usuarios WHERE sucursal_asignada = $1', [sucursalId]);
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async actualizar(id: string, data: Partial<UsuarioSistema>): Promise<UsuarioSistema | null> {
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    const mapField = (key: string) => {
+      const mapping: Record<string, string> = {
+        nombreCompleto: 'nombre_completo',
+        password: 'password_hash',
+        sucursalId: 'sucursal_asignada',
+        ultimoAcceso: 'ultimo_acceso',
+        ultimaActualizacion: 'ultima_actualizacion',
+      };
+      return mapping[key] || key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    };
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value === undefined) return;
+      const field = mapField(key);
+      if (key === 'permisos') {
+        fields.push(`${field} = $${paramIndex}`);
+        values.push(JSON.stringify(value));
+      } else if (key === 'estado') {
+        fields.push(`activo = $${paramIndex}`);
+        values.push(value === 'Activo');
+      } else {
+        fields.push(`${field} = $${paramIndex}`);
+        values.push(value);
+      }
+      paramIndex++;
+    });
+
+    fields.push(`ultima_actualizacion = CURRENT_TIMESTAMP`);
+    values.push(id);
+
+    const query = `
+      UPDATE usuarios
+      SET ${fields.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await this.pool.query(query, values);
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async eliminar(id: string): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM usuarios WHERE id = $1', [id]);
+    return result.rowCount > 0;
+  }
+
+  async suspender(id: string): Promise<UsuarioSistema | null> {
+    const result = await this.pool.query(
+      'UPDATE usuarios SET activo = false, ultima_actualizacion = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async activar(id: string): Promise<UsuarioSistema | null> {
+    const result = await this.pool.query(
+      'UPDATE usuarios SET activo = true, ultima_actualizacion = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
+      [id]
+    );
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async registrarAcceso(id: string): Promise<void> {
+    await this.pool.query(
+      'UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP, ultima_actualizacion = CURRENT_TIMESTAMP WHERE id = $1',
+      [id]
+    );
+  }
+
+  private mapToEntity(row: any): UsuarioSistema {
+    const permisos = Array.isArray(row.permisos) ? row.permisos : row.permisos || [];
+    const permisosParsed = typeof permisos === 'string' ? JSON.parse(permisos) : permisos;
+
+    return {
+      id: row.id,
+      username: row.username,
+      password: row.password_hash,
+      email: row.email,
+      nombreCompleto: row.nombre_completo,
+      telefono: row.telefono,
+      rol: row.rol,
+      permisos: permisosParsed || [],
+      sucursalId: row.sucursal_asignada || undefined,
+      estado: row.activo ? 'Activo' : 'Suspendido',
+      ultimoAcceso: row.ultimo_acceso || undefined,
+      creadoPor: row.creado_por || 'sistema',
+      fechaCreacion: row.fecha_creacion,
+      ultimaActualizacion: row.ultima_actualizacion || row.fecha_creacion,
+    };
+  }
+
+  private toUuidOrNull(value?: string): string | null {
+    if (!value) return null;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(value) ? value : null;
+  }
 }
 
 /**

@@ -6,8 +6,8 @@ import Database from './infrastructure/database/Database';
 import routes from './api/routes';
 import { crearSchedulerManager, SchedulerManager } from './infrastructure/scheduling/SchedulerManager';
 import { InMemoryInasistenciaRepository } from './infrastructure/database/repositories/InasistenciaRepository';
-import { InMemoryCitaRepository } from './infrastructure/database/repositories/CitaRepository';
-import { InMemorySucursalRepository } from './infrastructure/database/repositories/SucursalRepository';
+import { CitaRepositoryPostgres, InMemoryCitaRepository } from './infrastructure/database/repositories/CitaRepository';
+import { InMemorySucursalRepository, SucursalRepositoryPostgres } from './infrastructure/database/repositories/SucursalRepository';
 import { RemarketingService } from './infrastructure/remarketing/RemarketingService';
 import { WhatsAppService } from './infrastructure/messaging/WhatsAppService';
 import { FacebookService } from './infrastructure/messaging/FacebookService';
@@ -82,6 +82,14 @@ app.get('/', (_req, res) => {
         estadisticas: 'GET /api/inasistencias/stats/general',
         catalogoMotivos: 'GET /api/inasistencias/catalogo/motivos'
       },
+      automatizaciones: {
+        reglas: 'GET /api/automatizaciones/reglas',
+        crear: 'POST /api/automatizaciones/reglas',
+        actualizar: 'PUT /api/automatizaciones/reglas/:id',
+        eliminar: 'DELETE /api/automatizaciones/reglas/:id',
+        logs: 'GET /api/automatizaciones/logs',
+        ejecutar: 'POST /api/automatizaciones/ejecutar'
+      },
       schedulers: {
         waitList: 'Cada 15 minutos - Mueve citas a lista de espera',
         autoClosure: 'Diario 23:00 - Cierra listas y crea inasistencias',
@@ -120,11 +128,13 @@ const startServer = async () => {
 
     // 1. Probar conexión a la base de datos (opcional)
     console.log('🔄 Verificando base de datos...');
+    let dbDisponible = false;
     try {
       const db = Database.getInstance();
       const connected = await db.testConnection();
       if (connected) {
         console.log('✅ Conexión a base de datos establecida\n');
+        dbDisponible = true;
       } else {
         console.log('⚠️  Base de datos no disponible - Usando repositorios en memoria\n');
       }
@@ -135,8 +145,8 @@ const startServer = async () => {
     // 2. Inicializar repositorios
     console.log('🔄 Inicializando repositorios...');
     const inasistenciaRepo = new InMemoryInasistenciaRepository();
-    const citaRepo = new InMemoryCitaRepository();
-    const sucursalRepo = new InMemorySucursalRepository();
+    const citaRepo = dbDisponible ? new CitaRepositoryPostgres() : new InMemoryCitaRepository();
+    const sucursalRepo = dbDisponible ? new SucursalRepositoryPostgres() : new InMemorySucursalRepository();
     console.log('✅ Repositorios inicializados\n');
 
     // 3. Inicializar servicios de mensajería

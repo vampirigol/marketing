@@ -12,6 +12,11 @@ import authRoutes from './auth';
 import segmentacionRoutes from './segmentacion';
 import campanasRoutes from './campanas';
 import importExportRoutes from './import-export';
+import automatizacionesRoutes from './automatizaciones';
+import crmRoutes from './crm';
+import sucursalesRoutes from './sucursales';
+import auditoriaRoutes from './auditoria';
+import healthRoutes from './health';
 
 const router = Router();
 
@@ -36,6 +41,11 @@ router.use('/contactos', contactosRoutes);
 router.use('/segmentacion', segmentacionRoutes);
 router.use('/campanas', campanasRoutes);
 router.use('/import-export', importExportRoutes);
+router.use('/automatizaciones', automatizacionesRoutes);
+router.use('/crm', crmRoutes);
+router.use('/sucursales', sucursalesRoutes);
+router.use('/auditoria', auditoriaRoutes);
+router.use('/health', healthRoutes);
 
 /**
  * Ruta de prueba de conexión

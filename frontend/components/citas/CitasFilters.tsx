@@ -7,6 +7,10 @@ import { Input } from '@/components/ui/Input';
 
 interface CitasFiltersProps {
   onFilterChange: (filters: CitasFilterState) => void;
+  sucursales?: Array<{ id: string; nombre: string }>;
+  medicos?: string[];
+  estados?: Array<{ value: string; label: string }>;
+  tiposConsulta?: string[];
 }
 
 export interface CitasFilterState {
@@ -56,7 +60,13 @@ const ESTADOS = [
   { value: 'No_Asistio', label: 'No Asistió' }
 ];
 
-export function CitasFilters({ onFilterChange }: CitasFiltersProps) {
+export function CitasFilters({
+  onFilterChange,
+  sucursales = SUCURSALES,
+  medicos = MEDICOS,
+  estados = ESTADOS,
+  tiposConsulta = TIPOS_CONSULTA,
+}: CitasFiltersProps) {
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [filters, setFilters] = useState<CitasFilterState>({
     soloPromociones: false
@@ -144,7 +154,7 @@ export function CitasFilters({ onFilterChange }: CitasFiltersProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Todas las sucursales</option>
-              {SUCURSALES.map((suc) => (
+              {sucursales.map((suc) => (
                 <option key={suc.id} value={suc.id}>
                   {suc.nombre}
                 </option>
@@ -163,7 +173,7 @@ export function CitasFilters({ onFilterChange }: CitasFiltersProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Todos los médicos</option>
-              {MEDICOS.map((medico) => (
+              {medicos.map((medico) => (
                 <option key={medico} value={medico}>
                   {medico}
                 </option>
@@ -182,7 +192,7 @@ export function CitasFilters({ onFilterChange }: CitasFiltersProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Todos los tipos</option>
-              {TIPOS_CONSULTA.map((tipo) => (
+              {tiposConsulta.map((tipo) => (
                 <option key={tipo} value={tipo}>
                   {tipo}
                 </option>
@@ -201,7 +211,7 @@ export function CitasFilters({ onFilterChange }: CitasFiltersProps) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Todos los estados</option>
-              {ESTADOS.map((estado) => (
+              {estados.map((estado) => (
                 <option key={estado.value} value={estado.value}>
                   {estado.label}
                 </option>

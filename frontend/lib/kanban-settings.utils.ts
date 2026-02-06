@@ -17,22 +17,31 @@ export const DEFAULT_BOARD_SETTINGS: KanbanBoardSettings = {
 
 const STORAGE_KEY = 'matrix.kanbanBoardSettings';
 
-export function getKanbanBoardSettings(): KanbanBoardSettings {
-  if (typeof window === 'undefined') return DEFAULT_BOARD_SETTINGS;
+export function getKanbanBoardSettings(options?: {
+  storageKey?: string;
+  defaultColumns?: KanbanColumnConfig[];
+}): KanbanBoardSettings {
+  const storageKey = options?.storageKey ?? STORAGE_KEY;
+  const defaultColumns = options?.defaultColumns ?? DEFAULT_COLUMN_CONFIGS;
+  const defaultSettings: KanbanBoardSettings = {
+    hideEmptyColumns: false,
+    columns: defaultColumns,
+  };
+  if (typeof window === 'undefined') return defaultSettings;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_BOARD_SETTINGS;
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return defaultSettings;
     const parsed = JSON.parse(raw) as Partial<KanbanBoardSettings>;
     return {
-      hideEmptyColumns: parsed.hideEmptyColumns ?? DEFAULT_BOARD_SETTINGS.hideEmptyColumns,
-      columns: parsed.columns ?? DEFAULT_COLUMN_CONFIGS,
+      hideEmptyColumns: parsed.hideEmptyColumns ?? defaultSettings.hideEmptyColumns,
+      columns: parsed.columns ?? defaultColumns,
     };
   } catch {
-    return DEFAULT_BOARD_SETTINGS;
+    return defaultSettings;
   }
 }
 
-export function saveKanbanBoardSettings(settings: KanbanBoardSettings): void {
+export function saveKanbanBoardSettings(settings: KanbanBoardSettings, storageKey: string = STORAGE_KEY): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  window.localStorage.setItem(storageKey, JSON.stringify(settings));
 }

@@ -16,10 +16,18 @@ import { InasistenciaScheduler } from './InasistenciaScheduler';
 import { ReminderScheduler } from './ReminderScheduler';
 import { TimeZoneScheduler } from './TimeZoneScheduler';
 import { ExpiracionOpenTicketsScheduler } from './ExpiracionOpenTicketsScheduler';
+import { AutomationScheduler } from './AutomationScheduler';
 import { CitaRepository } from '../database/repositories/CitaRepository';
 import { InasistenciaRepository } from '../database/repositories/InasistenciaRepository';
 import { SucursalRepository } from '../database/repositories/SucursalRepository';
 import { RemarketingService } from '../remarketing/RemarketingService';
+import { AutomationEngine } from '../automation/AutomationEngine';
+import { automationRepository, PostgresAutomationRepository } from '../automation/AutomationRepository';
+import { seedAutomationRulesIfEmpty } from '../automation/automation-seed';
+import { solicitudContactoRepository } from '../database/repositories/SolicitudContactoRepository';
+import { WhatsAppService } from '../messaging/WhatsAppService';
+import { FacebookService } from '../messaging/FacebookService';
+import { InstagramService } from '../messaging/InstagramService';
 
 export interface SchedulerConfig {
   // WaitList Scheduler
@@ -69,6 +77,7 @@ export class SchedulerManager {
   private reminderScheduler?: ReminderScheduler;
   private timeZoneScheduler?: TimeZoneScheduler;
   private expiracionTicketsScheduler?: ExpiracionOpenTicketsScheduler;
+  private automationScheduler?: AutomationScheduler;
 
   private estadoSchedulers: Map<string, SchedulerStatus>;
 
@@ -128,9 +137,22 @@ export class SchedulerManager {
         this.config?.timeZone
       );
       this.registrarScheduler('TimeZone');
-// 6. Expiración Open Tickets Scheduler - Marca tickets expirados
+
+      // 6. Expiración Open Tickets Scheduler - Marca tickets expirados
       this.expiracionTicketsScheduler = new ExpiracionOpenTicketsScheduler();
       this.registrarScheduler('ExpiracionTickets');
+
+      // 7. Automation Scheduler - Ejecuta reglas de automatización
+      const automationEngine = new AutomationEngine(
+        solicitudContactoRepository,
+        new WhatsAppService(),
+        new FacebookService(),
+        new InstagramService()
+      );
+      const repo = process.env.DB_HOST || process.env.DATABASE_URL ? new PostgresAutomationRepository() : automationRepository;
+      await seedAutomationRulesIfEmpty(repo);
+      this.automationScheduler = new AutomationScheduler(automationEngine, repo, '*/1 * * * *');
+      this.registrarScheduler('Automation');
 
       
       console.log('✅ Todos los schedulers inicializados correctamente\n');
@@ -178,6 +200,11 @@ export class SchedulerManager {
         this.actualizarEstado('TimeZone', 'running');
       }
 
+      if (this.automationScheduler) {
+        this.automationScheduler.start();
+        this.actualizarEstado('Automation', 'running');
+      }
+
       console.log('\n╔═══════════════════════════════════════════════════════╗');
       console.log('║          TODOS LOS SCHEDULERS INICIADOS ✅            ║');
       console.log('╚═══════════════════════════════════════════════════════╝\n');
@@ -222,6 +249,11 @@ export class SchedulerManager {
     if (this.timeZoneScheduler) {
       this.timeZoneScheduler.stop();
       this.actualizarEstado('TimeZone', 'stopped');
+    }
+
+    if (this.automationScheduler) {
+      this.automationScheduler.stop();
+      this.actualizarEstado('Automation', 'stopped');
     }
 
     console.log('✅ Todos los schedulers detenidos\n');

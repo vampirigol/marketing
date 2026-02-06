@@ -140,9 +140,35 @@ export interface EstadisticasKanban {
 }
 
 // Tipos para Automatización (IF-THEN)
-export type ConditionType = 'time-in-status' | 'valor-leads' | 'canal' | 'etiqueta' | 'vendedor' | 'estado';
-export type ConditionOperator = '>' | '<' | '=' | '!=' | 'contains' | 'not-contains';
-export type ActionType = 'move-status' | 'assign-vendedor' | 'add-etiqueta' | 'remove-etiqueta' | 'send-notification';
+export type ConditionType =
+  | 'time-in-status'
+  | 'valor-leads'
+  | 'canal'
+  | 'etiqueta'
+  | 'vendedor'
+  | 'estado'
+  | 'sucursal'
+  | 'campana'
+  | 'servicio'
+  | 'origen'
+  | 'intentos'
+  | 'dias-sin-respuesta'
+  | 'ventana-mensajeria'
+  | 'contenido';
+export type ConditionOperator = '>' | '<' | '>=' | '<=' | '=' | '!=' | 'contains' | 'not-contains' | 'in' | 'not-in';
+export type ActionType =
+  | 'move-status'
+  | 'assign-vendedor'
+  | 'add-etiqueta'
+  | 'remove-etiqueta'
+  | 'send-notification'
+  | 'create-task'
+  | 'notify-supervisor'
+  | 'block-conversation'
+  | 'integration'
+  | 'cita-confirmar'
+  | 'cita-reagendar'
+  | 'cita-llegada';
 
 export interface AutomationCondition {
   id: string;
@@ -164,6 +190,29 @@ export interface AutomationRule {
   nombre: string;
   descripcion?: string;
   activa: boolean;
+  categoria?: string;
+  prioridad?: 'alta' | 'media' | 'baja';
+  rolesPermitidos?: Array<'Admin' | 'Finanzas' | 'Contact_Center' | 'Recepcion' | 'Medico'>;
+  abTest?: {
+    enabled: boolean;
+    ratio: number; // 0-100 para variante A
+    variantA: string;
+    variantB: string;
+  };
+  horario?: {
+    dias: string[];
+    inicio: string;
+    fin: string;
+    zona?: string;
+  };
+  sucursalScope?: string;
+  slaPorEtapa?: Partial<Record<'new' | 'reviewing' | 'in-progress' | 'open' | 'qualified', number>>;
+  pausa?: {
+    tipo: 'sucursal' | 'asesor';
+    id: string;
+    desde: string;
+    hasta: string;
+  };
   condiciones: AutomationCondition[]; // AND entre condiciones
   acciones: AutomationAction[];
   fechaCreacion: Date;

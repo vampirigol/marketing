@@ -34,10 +34,19 @@ export async function convertirLeadAPaciente(
     const paciente = await crearPacienteDesdeLeads(lead);
 
     // 2. Auto-crear cita (paralelo)
+    const sucursalLead = typeof lead.customFields?.Sucursal === 'string' ? lead.customFields?.Sucursal : undefined;
+    const sucursalActual = typeof window !== 'undefined' ? localStorage.getItem('sucursalActual') || undefined : undefined;
+    const esPromocion =
+      typeof lead.customFields?.Promocion === 'boolean'
+        ? lead.customFields?.Promocion
+        : Array.isArray(lead.etiquetas) && lead.etiquetas.some((tag) => tag.toLowerCase().includes('promo'));
+
     const citaPromise = crearCitaAutomatica(paciente.id, {
       especialidad: data.especialidad || 'Consulta General',
       tipoConsulta: data.tipoConsulta || 'Consulta Inicial',
       fechaCita: data.fechaCita || generarFechaPruebaProxima(),
+      sucursalId: sucursalLead || sucursalActual || 'SUC-001',
+      esPromocion,
     });
 
     // 3. Enviar confirmación WhatsApp (paralelo)
@@ -121,18 +130,20 @@ async function crearCitaAutomatica(
     especialidad: string;
     tipoConsulta: string;
     fechaCita: Date;
+    sucursalId: string;
+    esPromocion: boolean;
   }
 ): Promise<Cita> {
   const citaData = {
     pacienteId,
-    sucursalId: 'SUC-001', // Default sucursal
+    sucursalId: options.sucursalId,
     fechaCita: options.fechaCita,
     horaCita: generarHoraPrueba(),
     duracionMinutos: 30,
     tipoConsulta: options.tipoConsulta,
     especialidad: options.especialidad,
     estado: 'Agendada' as const,
-    esPromocion: true,
+    esPromocion: options.esPromocion,
     costoConsulta: 250,
     montoAbonado: 0,
     saldoPendiente: 250,

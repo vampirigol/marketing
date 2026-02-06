@@ -1,31 +1,43 @@
 'use client';
 
 import { AutomationLog } from '@/types/matrix';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { BarChart3, Filter, Download, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { obtenerLogs, limpiarLogsAntiguos } from '@/lib/automation-rules.service';
 
 interface AutomationLogsViewerProps {
+  initialRuleId?: string;
   onRefresh?: () => void;
   onClearOldLogs?: () => void;
 }
 
 export function AutomationLogsViewer({
+  initialRuleId,
   onRefresh,
   onClearOldLogs
 }: AutomationLogsViewerProps) {
   const [filtroRuleId, setFiltroRuleId] = useState('');
+  useEffect(() => {
+    if (initialRuleId !== undefined) {
+      setFiltroRuleId(initialRuleId);
+    }
+  }, [initialRuleId]);
   const [filtroResultado, setFiltroResultado] = useState<'exitosa' | 'fallida' | 'parcial' | ''>('');
   const [filtroDias, setFiltroDias] = useState(7);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [todosLogs, setTodosLogs] = useState<AutomationLog[]>([]);
 
   // Obtener logs dinámicamente
-  const todosLogs = useMemo(() => {
-    return obtenerLogs({
-      ruleId: filtroRuleId || undefined,
-      resultado: (filtroResultado as 'exitosa' | 'fallida' | 'parcial' | undefined) || undefined,
-      dias: filtroDias
-    });
+  useEffect(() => {
+    const cargar = async () => {
+      const data = await obtenerLogs({
+        ruleId: filtroRuleId || undefined,
+        resultado: (filtroResultado as 'exitosa' | 'fallida' | 'parcial' | undefined) || undefined,
+        dias: filtroDias
+      });
+      setTodosLogs(data);
+    };
+    cargar();
   }, [filtroRuleId, filtroResultado, filtroDias]);
 
   // Estadísticas
@@ -81,7 +93,7 @@ export function AutomationLogsViewer({
     a.click();
   };
 
-  const handleClearOldLogs = () => {
+  const handleClearOldLogs = async () => {
     if (confirm('¿Estás seguro de que quieres eliminar los logs anteriores a 30 días?')) {
       limpiarLogsAntiguos(30);
       onClearOldLogs?.();

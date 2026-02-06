@@ -18,7 +18,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { MarcarLlegadaModal } from '@/components/recepcion/MarcarLlegadaModal';
-import { SUCURSALES } from '@/lib/doctores-data';
+import { citasService } from '@/lib/citas.service';
+import { pacientesService } from '@/lib/pacientes.service';
+import { obtenerSucursales, SucursalApi } from '@/lib/sucursales.service';
 
 interface Cita {
   id: string;
@@ -36,6 +38,7 @@ interface Cita {
   estado: 'pendiente' | 'en-espera' | 'atendiendo' | 'completada' | 'inasistencia';
   llegada?: string;
   notas?: string;
+  slaMin?: number;
 }
 
 export default function RecepcionPage() {
@@ -46,6 +49,8 @@ export default function RecepcionPage() {
   const [showInasistenciaModal, setShowInasistenciaModal] = useState(false);
   const [motivoInasistencia, setMotivoInasistencia] = useState('Trabajo');
   const [sucursalActual, setSucursalActual] = useState('Guadalajara');
+  const [sucursales, setSucursales] = useState<SucursalApi[]>([]);
+  const [sucursalIdActual, setSucursalIdActual] = useState<string | null>(null);
 
   const motivosInasistencia = [
     'Trabajo',
@@ -55,201 +60,103 @@ export default function RecepcionPage() {
     'Otro',
   ];
 
-  const [citasHoy, setCitasHoy] = useState<Cita[]>([
-    {
-      id: '1',
-      hora: '08:00',
-      paciente: {
-        id: 'p1',
-        nombre: 'María González López',
-        telefono: '555-1234'
-      },
-      servicio: 'Medicina General',
-      doctor: 'Dr. Pérez',
-      consultorio: 'Consultorio 1',
-      sucursal: 'Guadalajara',
-      estado: 'completada',
-      llegada: '07:55'
-    },
-    {
-      id: '2',
-      hora: '08:30',
-      paciente: {
-        id: 'p2',
-        nombre: 'Pedro Sánchez Ruiz',
-        telefono: '555-5678'
-      },
-      servicio: 'Odontología',
-      doctor: 'Dra. Martínez',
-      consultorio: 'Consultorio 3',
-      sucursal: 'Ciudad Juárez',
-      estado: 'atendiendo',
-      llegada: '08:25'
-    },
-    {
-      id: '3',
-      hora: '09:00',
-      paciente: {
-        id: 'p3',
-        nombre: 'Ana Martínez Díaz',
-        telefono: '555-9012'
-      },
-      servicio: 'Pediatría',
-      doctor: 'Dr. López',
-      consultorio: 'Consultorio 2',
-      sucursal: 'Guadalajara',
-      estado: 'en-espera',
-      llegada: '08:50'
-    },
-    {
-      id: '4',
-      hora: '09:30',
-      paciente: {
-        id: 'p4',
-        nombre: 'Carlos Ruiz Gómez',
-        telefono: '555-3456'
-      },
-      servicio: 'Traumatología',
-      doctor: 'Dr. Ramírez',
-      consultorio: 'Consultorio 4',
-      sucursal: 'Ciudad Obregón',
-      estado: 'pendiente'
-    },
-    {
-      id: '5',
-      hora: '10:00',
-      paciente: {
-        id: 'p5',
-        nombre: 'Laura Díaz Torres',
-        telefono: '555-7890'
-      },
-      servicio: 'Ginecología',
-      doctor: 'Dra. García',
-      consultorio: 'Consultorio 5',
-      sucursal: 'Guadalajara',
-      estado: 'pendiente'
-    },
-    {
-      id: '6',
-      hora: '08:15',
-      paciente: {
-        id: 'p6',
-        nombre: 'Roberto Fernández',
-        telefono: '555-2468'
-      },
-      servicio: 'Cardiología',
-      doctor: 'Dr. Hernández',
-      consultorio: 'Consultorio 6',
-      sucursal: 'Ciudad Juárez',
-      estado: 'inasistencia',
-      notas: 'No se presentó - contactar y registrar motivo'
-    },
-    {
-      id: '7',
-      hora: '10:30',
-      paciente: {
-        id: 'p7',
-        nombre: 'Sofía Navarro Ortiz',
-        telefono: '555-3321'
-      },
-      servicio: 'Odontología',
-      doctor: 'Gregorio Pérez',
-      consultorio: 'Consultorio 1',
-      sucursal: 'Loreto Héroes',
-      estado: 'pendiente'
-    },
-    {
-      id: '8',
-      hora: '11:00',
-      paciente: {
-        id: 'p8',
-        nombre: 'Héctor Salinas Vega',
-        telefono: '555-7788'
-      },
-      servicio: 'Odontología',
-      doctor: 'Nancy Grijalva',
-      consultorio: 'Consultorio 2',
-      sucursal: 'Loreto Centro',
-      estado: 'en-espera',
-      llegada: '10:50'
-    },
-    {
-      id: '9',
-      hora: '11:30',
-      paciente: {
-        id: 'p9',
-        nombre: 'Paula Ríos Sánchez',
-        telefono: '555-9901'
-      },
-      servicio: 'Medicina General',
-      doctor: 'Yamila Arredondo',
-      consultorio: 'Virtual 1',
-      sucursal: 'Clínica Adventista Virtual',
-      estado: 'atendiendo',
-      llegada: '11:25'
-    },
-    {
-      id: '10',
-      hora: '12:00',
-      paciente: {
-        id: 'p10',
-        nombre: 'Daniela Torres Aguilar',
-        telefono: '555-1144'
-      },
-      servicio: 'Oftalmología',
-      doctor: 'Dr. José Ricardo Espinoza Vargas',
-      consultorio: 'Consultorio 3',
-      sucursal: 'General',
-      estado: 'pendiente'
-    },
-    {
-      id: '11',
-      hora: '12:30',
-      paciente: {
-        id: 'p11',
-        nombre: 'Luis Herrera Cano',
-        telefono: '555-2211'
-      },
-      servicio: 'Medicina General',
-      doctor: 'Dra. Tirsa Abisag Espinoza',
-      consultorio: 'Consultorio 4',
-      sucursal: 'General',
-      estado: 'completada',
-      llegada: '12:20'
-    },
-    {
-      id: '12',
-      hora: '13:00',
-      paciente: {
-        id: 'p12',
-        nombre: 'Karina Mejía Duarte',
-        telefono: '555-6633'
-      },
-      servicio: 'Medicina General',
-      doctor: 'Dr. Pérez',
-      consultorio: 'Consultorio 7',
-      sucursal: 'Valle de la Trinidad',
-      estado: 'pendiente'
-    }
-  ]);
+  const [citasHoy, setCitasHoy] = useState<Cita[]>([]);
 
   useEffect(() => {
+    const cargarSucursales = async () => {
+      try {
+        const data = await obtenerSucursales(true);
+        setSucursales(data);
+      } catch (error) {
+        console.error('Error cargando sucursales:', error);
+      }
+    };
+    cargarSucursales();
+  }, []);
+
+  useEffect(() => {
+    if (!sucursales.length) return;
     const savedSucursal = localStorage.getItem('sucursalActual');
-    const defaultSucursal = SUCURSALES[0] || 'Guadalajara';
-    if (savedSucursal && SUCURSALES.includes(savedSucursal)) {
+    const defaultSucursal = sucursales[0]?.nombre || 'Guadalajara';
+    if (savedSucursal) {
       setSucursalActual(savedSucursal);
       return;
     }
-    if (savedSucursal || sucursalActual !== defaultSucursal) {
-      setSucursalActual(defaultSucursal);
-      localStorage.setItem('sucursalActual', defaultSucursal);
-    }
-  }, [sucursalActual]);
+    setSucursalActual(defaultSucursal);
+    localStorage.setItem('sucursalActual', defaultSucursal);
+  }, [sucursales]);
+
+  useEffect(() => {
+    if (!sucursales.length) return;
+    const matched = sucursales.find((s) => s.nombre === sucursalActual) || sucursales[0];
+    setSucursalIdActual(matched?.id || null);
+  }, [sucursales, sucursalActual]);
 
   const handleSucursalChange = (sucursal: string) => {
     setSucursalActual(sucursal);
     localStorage.setItem('sucursalActual', sucursal);
   };
+
+  const mapEstadoBackend = (estado: string): Cita['estado'] => {
+    if (estado === 'Agendada') return 'pendiente';
+    if (estado === 'Confirmada') return 'en-espera';
+    if (estado === 'En_Consulta') return 'atendiendo';
+    if (estado === 'Atendida') return 'completada';
+    if (estado === 'No_Asistio' || estado === 'Cancelada') return 'inasistencia';
+    return 'pendiente';
+  };
+
+  const calcularSlaMin = (horaCita: string) => {
+    const [hora, minuto] = horaCita.split(':').map(Number);
+    const ahora = new Date();
+    const citaDate = new Date();
+    citaDate.setHours(hora, minuto, 0, 0);
+    const diff = Math.round((ahora.getTime() - citaDate.getTime()) / 60000);
+    return diff;
+  };
+
+  const cargarCitasHoy = async () => {
+    if (!sucursalIdActual) return;
+    try {
+      const fecha = new Date().toISOString().split('T')[0];
+      const citasBackend = await citasService.obtenerPorSucursalYFecha(sucursalIdActual, fecha);
+      const pacienteIds = Array.from(new Set(citasBackend.map((c: any) => c.pacienteId)));
+      const pacientes = await Promise.all(
+        pacienteIds.map((id) => pacientesService.obtenerPorId(id).catch(() => null))
+      );
+      const pacientesMap = new Map(pacientes.filter(Boolean).map((p: any) => [p.id, p]));
+      const sucursalNombre = sucursales.find((s) => s.id === sucursalIdActual)?.nombre || 'Sucursal';
+
+      const citasMapped: Cita[] = citasBackend.map((cita: any) => {
+        const paciente = pacientesMap.get(cita.pacienteId);
+        return {
+          id: cita.id,
+          hora: cita.horaCita,
+          paciente: {
+            id: cita.pacienteId,
+            nombre: paciente?.nombreCompleto || 'Paciente',
+            telefono: paciente?.telefono || '',
+          },
+          servicio: cita.especialidad || 'Consulta',
+          doctor: cita.medicoAsignado || 'Doctor',
+          consultorio: cita.medicoAsignado ? `Consultorio ${cita.medicoAsignado}` : 'Consultorio',
+          sucursal: sucursalNombre,
+          estado: mapEstadoBackend(cita.estado),
+          llegada: cita.horaLlegada ? new Date(cita.horaLlegada).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : undefined,
+          slaMin: calcularSlaMin(cita.horaCita),
+        };
+      });
+
+      setCitasHoy(citasMapped);
+    } catch (error) {
+      console.error('Error cargando citas de recepción:', error);
+    }
+  };
+
+  useEffect(() => {
+    cargarCitasHoy();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sucursalIdActual]);
 
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
@@ -290,31 +197,32 @@ export default function RecepcionPage() {
     setShowModal(true);
   };
 
-  const handleConfirmarLlegada = (citaId: string, data: { horaLlegada: string; notas?: string }) => {
-    setCitasHoy(prev =>
-      prev.map(c =>
-        c.id === citaId
-          ? {
-              ...c,
-              estado: 'en-espera',
-              llegada: data.horaLlegada,
-              notas: data.notas || c.notas,
-            }
-          : c
-      )
-    );
+  const handleConfirmarLlegada = async (citaId: string, data: { horaLlegada: string; notas?: string }) => {
+    try {
+      await citasService.marcarLlegada(citaId, { horaLlegada: data.horaLlegada });
+      await citasService.actualizar(citaId, { notas: data.notas });
+      cargarCitasHoy();
+    } catch (error) {
+      console.error('Error al marcar llegada:', error);
+    }
   };
 
-  const handlePasarConsultorio = (citaId: string) => {
-    setCitasHoy(prev =>
-      prev.map(c => (c.id === citaId ? { ...c, estado: 'atendiendo' } : c))
-    );
+  const handlePasarConsultorio = async (citaId: string) => {
+    try {
+      await citasService.actualizar(citaId, { estado: 'En_Consulta' as any });
+      cargarCitasHoy();
+    } catch (error) {
+      console.error('Error al pasar a consultorio:', error);
+    }
   };
 
-  const handleCompletarCita = (citaId: string) => {
-    setCitasHoy(prev =>
-      prev.map(c => (c.id === citaId ? { ...c, estado: 'completada' } : c))
-    );
+  const handleCompletarCita = async (citaId: string) => {
+    try {
+      await citasService.actualizar(citaId, { estado: 'Atendida' as any });
+      cargarCitasHoy();
+    } catch (error) {
+      console.error('Error al completar cita:', error);
+    }
   };
 
   const handleMarcarInasistencia = (cita: Cita) => {
@@ -362,9 +270,9 @@ export default function RecepcionPage() {
                 onChange={(e) => handleSucursalChange(e.target.value)}
                 className="text-sm font-medium text-gray-700 bg-transparent focus:outline-none"
               >
-                {SUCURSALES.map((sucursal) => (
-                  <option key={sucursal} value={sucursal}>
-                    {sucursal}
+                {sucursales.map((sucursal) => (
+                  <option key={sucursal.id} value={sucursal.nombre}>
+                    {sucursal.nombre}
                   </option>
                 ))}
               </select>
@@ -493,6 +401,13 @@ export default function RecepcionPage() {
                         <p className="text-2xl font-bold text-gray-900">{cita.hora}</p>
                         {cita.llegada && (
                           <p className="text-xs text-gray-500">Llegó: {cita.llegada}</p>
+                        )}
+                        {typeof cita.slaMin === 'number' && cita.estado !== 'completada' && (
+                          <p className={`text-xs font-semibold ${
+                            cita.slaMin > 15 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            SLA: {cita.slaMin} min
+                          </p>
                         )}
                       </div>
                     </div>
@@ -642,19 +557,17 @@ export default function RecepcionPage() {
               <Button
                 variant="danger"
                 onClick={() => {
-                  setCitasHoy(prev =>
-                    prev.map(c =>
-                      c.id === selectedCita.id
-                        ? {
-                            ...c,
-                            estado: 'inasistencia',
-                            notas: `Motivo: ${motivoInasistencia}`,
-                          }
-                        : c
-                    )
-                  );
-                  setShowInasistenciaModal(false);
-                  setSelectedCita(null);
+                  citasService
+                    .actualizar(selectedCita.id, {
+                      estado: 'No_Asistio' as any,
+                      notas: `Motivo: ${motivoInasistencia}`,
+                    })
+                    .then(() => cargarCitasHoy())
+                    .catch((error) => console.error('Error registrando inasistencia:', error))
+                    .finally(() => {
+                      setShowInasistenciaModal(false);
+                      setSelectedCita(null);
+                    });
                 }}
               >
                 Confirmar

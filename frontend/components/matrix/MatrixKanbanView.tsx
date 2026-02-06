@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { AlertSettings, CustomFieldsSettings, KanbanBoardSettings, Lead, LeadStatus } from '@/types/matrix';
+import { AlertSettings, CustomFieldsSettings, KanbanBoardSettings, KanbanColumnConfig, Lead, LeadStatus } from '@/types/matrix';
 import { KanbanColumn } from './KanbanColumn';
 import { HeatmapAnalysisModal } from './HeatmapAnalysisModal';
 import { ConfirmMoveModal } from './ConfirmMoveModal';
@@ -27,6 +27,13 @@ interface MatrixKanbanViewProps {
   onLeadClick?: (lead: Lead) => void;
   onOpenConversation?: (conversacionId: string) => void;
   uiVariant?: 'default' | 'bitrix';
+  columnConfigs?: KanbanColumnConfig[];
+  boardSettingsKey?: string;
+  initialStates?: LeadStatus[];
+  getPrimaryAction?: (lead: Lead) => { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' } | null;
+  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada') => void;
+  hideConversionAction?: boolean;
+  onMoveLead?: (leadId: string, fromStatus: LeadStatus, toStatus: LeadStatus, lead: Lead) => Promise<void> | void;
 }
 
 interface DashboardStats {
@@ -41,13 +48,18 @@ interface LiveStatsPayload extends Partial<DashboardStats> {
   previousMonth?: Partial<DashboardStats>;
 }
 
-const COLUMN_CONFIGS = DEFAULT_COLUMN_CONFIGS;
-
 function MatrixKanbanViewContent({
   onLoadMore,
   onLeadClick,
   onOpenConversation,
   uiVariant = 'default',
+  columnConfigs,
+  boardSettingsKey,
+  initialStates,
+  getPrimaryAction,
+  onPrimaryAction,
+  hideConversionAction = false,
+  onMoveLead,
 }: MatrixKanbanViewProps) {
   const isBitrix = uiVariant === 'bitrix';
   const websocketEnabled =
@@ -73,9 +85,17 @@ function MatrixKanbanViewContent({
   } | null>(null);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(defaultAlertSettings);
   const [isAlertSettingsOpen, setIsAlertSettingsOpen] = useState(false);
+  const columnConfigsToUse = useMemo(
+    () => (columnConfigs && columnConfigs.length > 0 ? columnConfigs : DEFAULT_COLUMN_CONFIGS),
+    [columnConfigs]
+  );
+  const statesToUse = useMemo(
+    () => (initialStates && initialStates.length > 0 ? initialStates : columnConfigsToUse.map((c) => c.id)),
+    [initialStates, columnConfigsToUse]
+  );
   const [boardSettings, setBoardSettings] = useState<KanbanBoardSettings>({
     hideEmptyColumns: false,
-    columns: COLUMN_CONFIGS,
+    columns: columnConfigsToUse,
   });
   const [isColumnSettingsOpen, setIsColumnSettingsOpen] = useState(false);
   const [customFieldsSettings, setCustomFieldsSettings] = useState<CustomFieldsSettings>(DEFAULT_CUSTOM_FIELDS_SETTINGS);
@@ -98,6 +118,7 @@ function MatrixKanbanViewContent({
     initialLimit: 20,
     loadMoreLimit: 10,
     onLoadMore,
+    initialStates: statesToUse,
   });
 
   // Configurar sensores para drag and drop
@@ -119,8 +140,13 @@ function MatrixKanbanViewContent({
   }, []);
 
   useEffect(() => {
-    setBoardSettings(getKanbanBoardSettings());
-  }, []);
+    setBoardSettings(
+      getKanbanBoardSettings({
+        storageKey: boardSettingsKey,
+        defaultColumns: columnConfigsToUse,
+      })
+    );
+  }, [boardSettingsKey, columnConfigsToUse]);
 
   useEffect(() => {
     setCustomFieldsSettings(getCustomFieldsSettings());
@@ -133,10 +159,10 @@ function MatrixKanbanViewContent({
   }, []);
 
   const handleSaveBoardSettings = useCallback((settings: KanbanBoardSettings) => {
-    saveKanbanBoardSettings(settings);
+    saveKanbanBoardSettings(settings, boardSettingsKey);
     setBoardSettings(settings);
     setIsColumnSettingsOpen(false);
-  }, []);
+  }, [boardSettingsKey]);
 
   const handleSaveCustomFields = useCallback((settings: CustomFieldsSettings) => {
     saveCustomFieldsSettings(settings);
@@ -434,7 +460,11 @@ function MatrixKanbanViewContent({
 
     // Mover directamente
     try {
-      await moverLead(leadId, targetColumnId);
+      if (onMoveLead) {
+        await onMoveLead(leadId, sourceLead.status, targetColumnId, sourceLead);
+      } else {
+        await moverLead(leadId, targetColumnId);
+      }
       moveLeadInState(leadId, sourceLead.status, targetColumnId);
       clearSelection();
 
@@ -455,13 +485,17 @@ function MatrixKanbanViewContent({
     }
 
     setActiveDragId(null);
-  }, [columnsState, moveLeadInState, clearSelection, updateLead, ejecutarWorkflowQualified]);
+  }, [columnsState, moveLeadInState, clearSelection, updateLead, ejecutarWorkflowQualified, onMoveLead]);
 
   const handleConfirmMove = useCallback(async () => {
     if (!confirmMove) return;
 
     try {
-      await moverLead(confirmMove.lead.id, confirmMove.targetStatus);
+      if (onMoveLead) {
+        await onMoveLead(confirmMove.lead.id, confirmMove.lead.status, confirmMove.targetStatus, confirmMove.lead);
+      } else {
+        await moverLead(confirmMove.lead.id, confirmMove.targetStatus);
+      }
       moveLeadInState(confirmMove.lead.id, confirmMove.lead.status, confirmMove.targetStatus);
       clearSelection();
     } catch (error) {
@@ -469,7 +503,7 @@ function MatrixKanbanViewContent({
     }
 
     setConfirmMove(null);
-  }, [confirmMove, moveLeadInState, clearSelection]);
+  }, [confirmMove, moveLeadInState, clearSelection, onMoveLead]);
 
   // Encontrar el lead activo para el DragOverlay
   const activeLead = useMemo(() => {
@@ -919,6 +953,9 @@ function MatrixKanbanViewContent({
                 density={density}
                 alertSettings={alertSettings}
                 customFieldsSettings={customFieldsSettings}
+                getPrimaryAction={getPrimaryAction}
+                onPrimaryAction={onPrimaryAction}
+                hideConversionAction={hideConversionAction}
                 onOpenAnalysis={() => {
                   const rate = conversionRates.get(columna.id);
                   setAnalysisModal({

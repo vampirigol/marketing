@@ -7,18 +7,45 @@ import { ConversationView } from '@/components/matrix/ConversationView';
 import { PatientProfile } from '@/components/matrix/PatientProfile';
 import { MatrixKanbanView } from '@/components/matrix/MatrixKanbanView';
 import { Conversacion, Mensaje, Lead, LeadStatus } from '@/types/matrix';
-import { AlertCircle, LayoutGrid, MessageSquare } from 'lucide-react';
+import { AlertCircle, Clock, LayoutGrid, MessageSquare } from 'lucide-react';
 import { obtenerLeadsSimulados, obtenerConversacionesSimuladas } from '@/lib/matrix.service';
+import contactosService from '@/lib/contactos.service';
+import type { SolicitudContacto } from '@/types/contacto';
 
 export default function MatrixPage() {
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [conversacionActiva, setConversacionActiva] = useState<string | undefined>();
   const [vistaActual, setVistaActual] = useState<'inbox' | 'kanban'>('inbox');
+  const [colaPendiente, setColaPendiente] = useState<SolicitudContacto[]>([]);
+  const [colaVencida, setColaVencida] = useState<SolicitudContacto[]>([]);
+  const [cargandoCola, setCargandoCola] = useState(false);
 
   // Cargar conversaciones al montar el componente
   useEffect(() => {
     cargarConversaciones();
+    cargarCola();
   }, []);
+
+  const cargarCola = async () => {
+    setCargandoCola(true);
+    try {
+      const [pendientesResp, vencidasResp] = await Promise.all([
+        contactosService.obtenerPendientes(),
+        contactosService.obtenerVencidas(),
+      ]);
+      setColaPendiente(pendientesResp.solicitudes || []);
+      setColaVencida(vencidasResp.solicitudes || []);
+    } catch (error) {
+      console.error('Error al cargar cola de contacto:', error);
+    } finally {
+      setCargandoCola(false);
+    }
+  };
+
+  const calcularSlaMin = (fechaCreacion: string) => {
+    const creado = new Date(fechaCreacion);
+    return Math.round((Date.now() - creado.getTime()) / 60000);
+  };
 
   const cargarConversaciones = async () => {
     try {
@@ -401,6 +428,46 @@ export default function MatrixPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Cola de Contact Center */}
+        <div className="px-6 py-3 bg-white border-b border-gray-200">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Cola de Contacto</h2>
+              <p className="text-xs text-gray-500">SLA por solicitudes pendientes y vencidas</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="px-2 py-1 rounded-full bg-orange-50 text-orange-700 font-semibold">
+                Pendientes: {colaPendiente.length}
+              </span>
+              <span className="px-2 py-1 rounded-full bg-red-50 text-red-700 font-semibold">
+                Vencidas: {colaVencida.length}
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {cargandoCola ? (
+              <div className="text-xs text-gray-500">Cargando cola...</div>
+            ) : (
+              colaPendiente.slice(0, 6).map((item) => {
+                const sla = calcularSlaMin(item.fechaCreacion);
+                return (
+                  <div key={item.id} className="border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{item.nombreCompleto}</p>
+                      <span className={`text-xs font-semibold ${sla > 120 ? 'text-red-600' : 'text-green-600'}`}>
+                        <Clock className="inline-block w-3 h-3 mr-1" />
+                        {sla} min
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{item.sucursalNombre}</p>
+                    <p className="text-xs text-gray-700 mt-1">{item.motivo}</p>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 

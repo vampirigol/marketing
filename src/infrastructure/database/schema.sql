@@ -37,17 +37,19 @@ CREATE TABLE sucursales (
 -- ============================================
 CREATE TABLE usuarios (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  username VARCHAR(100) UNIQUE NOT NULL,
   nombre_completo VARCHAR(200) NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
   telefono VARCHAR(20) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   rol VARCHAR(50) NOT NULL CHECK (rol IN ('Admin', 'Finanzas', 'Contact_Center', 'Recepcion', 'Medico')),
-  permisos TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  permisos JSONB NOT NULL DEFAULT '[]'::jsonb,
   sucursal_asignada UUID REFERENCES sucursales(id),
   sucursales_acceso UUID[] NOT NULL DEFAULT ARRAY[]::UUID[],
   activo BOOLEAN NOT NULL DEFAULT true,
   ultimo_acceso TIMESTAMP,
   fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ultima_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   creado_por UUID REFERENCES usuarios(id)
 );
 
@@ -256,6 +258,39 @@ CREATE TABLE mensajes_matrix (
 );
 
 -- ============================================
+-- TABLA: solicitudes_contacto
+-- ============================================
+CREATE TABLE solicitudes_contacto (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  paciente_id UUID REFERENCES pacientes(id),
+  nombre_completo VARCHAR(200) NOT NULL,
+  telefono VARCHAR(20) NOT NULL,
+  email VARCHAR(100),
+  whatsapp VARCHAR(20),
+  sucursal_id UUID NOT NULL REFERENCES sucursales(id),
+  sucursal_nombre VARCHAR(200) NOT NULL,
+  motivo VARCHAR(50) NOT NULL,
+  motivo_detalle TEXT,
+  preferencia_contacto VARCHAR(20) NOT NULL CHECK (preferencia_contacto IN ('WhatsApp', 'Telefono', 'Email')),
+  estado VARCHAR(20) NOT NULL CHECK (estado IN ('Pendiente', 'Asignada', 'En_Contacto', 'Resuelta', 'Cancelada')),
+  prioridad VARCHAR(10) NOT NULL CHECK (prioridad IN ('Alta', 'Media', 'Baja')),
+  agente_asignado_id UUID REFERENCES usuarios(id),
+  agente_asignado_nombre VARCHAR(200),
+  intentos_contacto INTEGER NOT NULL DEFAULT 0,
+  ultimo_intento TIMESTAMP,
+  notas TEXT,
+  resolucion TEXT,
+  origen VARCHAR(20) NOT NULL CHECK (origen IN ('Web', 'WhatsApp', 'Facebook', 'Instagram', 'Telefono')),
+  creado_por VARCHAR(100) NOT NULL,
+  fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_asignacion TIMESTAMP,
+  fecha_resolucion TIMESTAMP,
+  ultima_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  crm_status VARCHAR(50),
+  crm_resultado VARCHAR(50)
+);
+
+-- ============================================
 -- ÍNDICES para optimización
 -- ============================================
 
@@ -285,6 +320,11 @@ CREATE INDEX idx_conversaciones_asignado ON conversaciones_matrix(asignado_a);
 -- Mensajes
 CREATE INDEX idx_mensajes_conversacion ON mensajes_matrix(conversacion_id);
 CREATE INDEX idx_mensajes_fecha ON mensajes_matrix(fecha_envio);
+
+-- Solicitudes de contacto
+CREATE INDEX idx_solicitudes_sucursal ON solicitudes_contacto(sucursal_id);
+CREATE INDEX idx_solicitudes_estado ON solicitudes_contacto(estado);
+CREATE INDEX idx_solicitudes_crm_status ON solicitudes_contacto(crm_status);
 
 -- ============================================
 -- TABLA: inasistencias
@@ -374,6 +414,44 @@ CREATE TRIGGER update_citas_updated_at BEFORE UPDATE ON citas
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
+-- TABLAS: automatizaciones
+-- ============================================
+CREATE TABLE automation_rules (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  nombre VARCHAR(200) NOT NULL,
+  descripcion TEXT,
+  activa BOOLEAN NOT NULL DEFAULT true,
+  categoria VARCHAR(100),
+  prioridad VARCHAR(20) NOT NULL DEFAULT 'media',
+  roles_permitidos TEXT[] DEFAULT ARRAY[]::TEXT[],
+  ab_test JSONB,
+  horario JSONB,
+  sucursal_scope VARCHAR(100),
+  sla_por_etapa JSONB,
+  pausa JSONB,
+  condiciones JSONB NOT NULL,
+  acciones JSONB NOT NULL,
+  fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE automation_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  rule_id UUID NOT NULL REFERENCES automation_rules(id),
+  rule_name VARCHAR(200) NOT NULL,
+  target_id VARCHAR(100) NOT NULL,
+  target_nombre VARCHAR(200) NOT NULL,
+  accion TEXT NOT NULL,
+  resultado VARCHAR(20) NOT NULL,
+  mensaje TEXT,
+  fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  detalles JSONB
+);
+
+CREATE INDEX idx_automation_logs_rule ON automation_logs(rule_id);
+CREATE INDEX idx_automation_logs_fecha ON automation_logs(fecha);
+
+-- ============================================
 -- DATOS INICIALES
 -- ============================================
 
@@ -386,14 +464,15 @@ VALUES
 
 -- Usuario administrador inicial (password: admin123 - CAMBIAR EN PRODUCCIÓN)
 -- Hash generado con bcrypt, rounds: 10
-INSERT INTO usuarios (nombre_completo, email, telefono, password_hash, rol, permisos, activo)
+INSERT INTO usuarios (username, nombre_completo, email, telefono, password_hash, rol, permisos, activo)
 VALUES (
+  'admin',
   'Administrador Sistema',
   'admin@rcaclinicas.com',
   '5550000000',
   '$2b$10$rBV2kw9h3Qr4CYkjV7rg2uh7jZxZKfGxqM1x.vJ8YQN5GKL4hRs0S',
   'Admin',
-  ARRAY['*'],
+  '[]'::jsonb,
   true
 );
 

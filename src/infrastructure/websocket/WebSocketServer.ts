@@ -203,6 +203,10 @@ export class WebSocketServer {
   getIO(): SocketIOServer {
     return this.io;
   }
+
+  getConnectedCount(): number {
+    return this.io.engine.clientsCount;
+  }
 }
 
 // Singleton instance (se inicializa en index.ts)
