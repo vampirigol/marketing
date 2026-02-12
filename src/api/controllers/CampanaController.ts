@@ -68,7 +68,7 @@ export class CampanaController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al crear campaña',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -87,7 +87,7 @@ export class CampanaController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al listar campañas',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -110,7 +110,7 @@ export class CampanaController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al obtener campaña',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -138,7 +138,7 @@ export class CampanaController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al ejecutar campaña',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -165,7 +165,7 @@ export class CampanaController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al cancelar campaña',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -193,7 +193,7 @@ export class CampanaController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al duplicar campaña',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };

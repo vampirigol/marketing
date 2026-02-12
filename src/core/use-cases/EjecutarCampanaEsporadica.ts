@@ -87,9 +87,10 @@ export class EjecutarCampanaEsporadicaUseCase {
   private async calcularAudiencia(audiencia: AudienciaCampana): Promise<Paciente[]> {
     let pacientes = await this.pacienteRepository.obtenerTodos();
 
-    // Filtrar por sucursal
+    // Filtrar por sucursal (Paciente no tiene sucursalId en entidad base; omitir si no hay)
     if (audiencia.sucursalIds && audiencia.sucursalIds.length > 0) {
-      pacientes = pacientes.filter(p => 
+      const pConSuc = pacientes as Array<Paciente & { sucursalId?: string }>;
+      pacientes = pConSuc.filter(p => 
         audiencia.sucursalIds!.includes(p.sucursalId || '')
       );
     }
@@ -126,7 +127,9 @@ export class EjecutarCampanaEsporadicaUseCase {
       }
 
       if (genero) {
-        pacientes = pacientes.filter(p => p.genero === genero);
+        const sexoMap: Record<string, 'M' | 'F' | 'Otro'> = { Masculino: 'M', Femenino: 'F' };
+        const sexoFiltro = sexoMap[genero];
+        pacientes = sexoFiltro ? pacientes.filter(p => p.sexo === sexoFiltro) : pacientes;
       }
     }
 

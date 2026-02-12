@@ -57,7 +57,7 @@ export class AbonoController {
       console.error('Error al crear abono:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al registrar el abono',
+        message: error instanceof Error ? error.message : 'Error al registrar el abono',
       });
     }
   }
@@ -83,7 +83,7 @@ export class AbonoController {
       console.error('Error al obtener abono:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al obtener el abono',
+        message: error instanceof Error ? error.message : 'Error al obtener el abono',
       });
     }
   }
@@ -102,7 +102,7 @@ export class AbonoController {
       console.error('Error al obtener abonos de la cita:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al obtener los abonos',
+        message: error instanceof Error ? error.message : 'Error al obtener los abonos',
       });
     }
   }
@@ -147,7 +147,7 @@ export class AbonoController {
       console.error('Error al obtener abonos:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al obtener los abonos',
+        message: error instanceof Error ? error.message : 'Error al obtener los abonos',
       });
     }
   }
@@ -292,7 +292,7 @@ export class AbonoController {
       console.error('Error al cancelar abono:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al cancelar el abono',
+        message: error instanceof Error ? error.message : 'Error al cancelar el abono',
       });
     }
   }

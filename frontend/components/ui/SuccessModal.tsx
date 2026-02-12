@@ -7,6 +7,8 @@ interface SuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  /** Mensaje adicional al pie (ej. "Se ha enviado un mensaje o correo de confirmación") */
+  mensajeAdicional?: string;
   data: {
     pacienteNombre: string;
     doctorNombre: string;
@@ -17,7 +19,7 @@ interface SuccessModalProps {
   };
 }
 
-export function SuccessModal({ isOpen, onClose, title = 'Cita agendada exitosamente', data }: SuccessModalProps) {
+export function SuccessModal({ isOpen, onClose, title = 'Cita agendada exitosamente', mensajeAdicional, data }: SuccessModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -126,7 +128,7 @@ export function SuccessModal({ isOpen, onClose, title = 'Cita agendada exitosame
 
             {/* Mensaje adicional */}
             <p className="text-center text-xs text-gray-500 mt-4">
-              La cita ha sido agregada al calendario
+              {mensajeAdicional ?? 'La cita ha sido agregada al calendario'}
             </p>
           </div>
         </div>

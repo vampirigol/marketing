@@ -21,6 +21,8 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   open: 'Abiertos',
   'in-progress': 'En Progreso',
   'open-deal': 'Negociación',
+  'agendados-mobile': 'Agendados Mobile',
+  'citas-locales': 'Citas Locales',
 };
 
 function obtenerInsights(conversionRate: number | null) {

@@ -12,6 +12,15 @@ const controller = new PacienteController();
 router.post('/', (req, res) => controller.crear(req, res));
 
 /**
+ * @route GET /api/pacientes/siguiente-afiliacion
+ * @desc Obtener siguiente número de afiliación único (RCA-YYYY-NNNNN) sin duplicados
+ * @access Privado
+ */
+router.get('/siguiente-afiliacion', (req, res) =>
+  controller.siguienteNoAfiliacion(req, res)
+);
+
+/**
  * @route GET /api/pacientes/:id
  * @desc Obtener paciente por ID
  * @access Privado

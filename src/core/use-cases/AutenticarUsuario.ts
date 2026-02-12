@@ -18,7 +18,7 @@ export interface RegistroDTO {
   email: string;
   nombreCompleto: string;
   telefono?: string;
-  rol: 'Recepcion' | 'Contact_Center' | 'Medico' | 'Supervisor';
+  rol: 'Admin' | 'Recepcion' | 'Contact_Center' | 'Medico' | 'Supervisor';
   sucursalId?: string;
   creadoPor: string;
 }
@@ -129,6 +129,13 @@ export class AutenticarUsuarioUseCase {
    */
   async obtenerPorId(id: string): Promise<UsuarioSistema | null> {
     return await this.usuarioRepository.obtenerPorId(id);
+  }
+
+  /**
+   * Actualizar foto de perfil
+   */
+  async actualizarFotoPerfil(usuarioId: string, fotoUrl: string): Promise<UsuarioSistema | null> {
+    return await this.usuarioRepository.actualizar(usuarioId, { fotoUrl });
   }
 
   /**

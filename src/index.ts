@@ -2,8 +2,14 @@ import express from 'express';
 import http from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import path from 'path';
 import Database from './infrastructure/database/Database';
+import { ensureCalendarioTable } from './infrastructure/database/runMigrationCalendario';
+import { ensureCitasConfirmacionListaEspera } from './infrastructure/database/runMigrationCitas';
+import { ensureBrigadasTable } from './infrastructure/database/runMigrationBrigadas';
+
 import routes from './api/routes';
+import { MatrixController } from './api/controllers/MatrixController';
 import { crearSchedulerManager, SchedulerManager } from './infrastructure/scheduling/SchedulerManager';
 import { InMemoryInasistenciaRepository } from './infrastructure/database/repositories/InasistenciaRepository';
 import { CitaRepositoryPostgres, InMemoryCitaRepository } from './infrastructure/database/repositories/CitaRepository';
@@ -13,26 +19,56 @@ import { WhatsAppService } from './infrastructure/messaging/WhatsAppService';
 import { FacebookService } from './infrastructure/messaging/FacebookService';
 import { InstagramService } from './infrastructure/messaging/InstagramService';
 import { initializeWebSocket } from './infrastructure/websocket/WebSocketServer';
+import SocketService from './infrastructure/websocket/SocketService';
 
 // Cargar variables de entorno
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001; // Backend en puerto 3001, frontend en 3000
+const PORT = parseInt(String(process.env.PORT || 3001), 10); // Backend en puerto 3001, frontend en 3000
 
 // Variable global para el scheduler manager
 let schedulerManager: SchedulerManager;
 
 // Middlewares
 app.use(cors());
-app.use(express.json());
+// Guardar raw body para verificar firmas HMAC en webhooks (Facebook/WhatsApp/Instagram)
+app.use(express.json({
+  verify: (req: any, _res, buf) => {
+    if (buf && buf.length) {
+      req.rawBody = buf;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
+
+// Servir archivos estáticos (uploads)
+const uploadsDir = path.join(process.cwd(), 'uploads');
+app.use('/uploads', express.static(uploadsDir));
 
 // Logging middleware
 app.use((req, _res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
+
+// Asset: logo clinicas adventistas
+app.get('/assets/logo-adventistas.png', (_req, res) => {
+  const logoPath = path.resolve(
+    process.cwd(),
+    'src',
+    'Logos Clínicas',
+    'Logos Red de Clínicas Adventistas',
+    'Logo Clínicas Adventistas Vertical.png'
+  );
+  res.sendFile(logoPath);
+});
+
+// Webhook unificado para Meta (Facebook Messenger + Instagram)
+// URL de devolución: https://unoffered-overstrongly-fermin.ngrok-free.dev/webhooks/messenger
+const metaWebhookController = new MatrixController();
+app.get('/webhooks/messenger', (req, res) => metaWebhookController.webhookMessenger(req, res));
+app.post('/webhooks/messenger', (req, res) => metaWebhookController.webhookMessenger(req, res));
 
 // Rutas API
 app.use('/api', routes);
@@ -135,6 +171,9 @@ const startServer = async () => {
       if (connected) {
         console.log('✅ Conexión a base de datos establecida\n');
         dbDisponible = true;
+        await ensureCalendarioTable();
+        await ensureCitasConfirmacionListaEspera();
+        await ensureBrigadasTable();
       } else {
         console.log('⚠️  Base de datos no disponible - Usando repositorios en memoria\n');
       }
@@ -206,7 +245,10 @@ const startServer = async () => {
 
     // 6. Iniciar servidor HTTP + WebSocket
     const httpServer = http.createServer(app);
-    initializeWebSocket(httpServer);
+    
+    // Inicializar Socket.io para mensajería avanzada
+    SocketService.getInstance(httpServer);
+    console.log('✅ Socket.io inicializado para mensajería\n');
 
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log('╔═══════════════════════════════════════════════════════╗');
@@ -257,7 +299,9 @@ const startServer = async () => {
       
       console.log('📊 Estado de Servicios:');
       console.log('   • API Express: ✅ Activo');
-      console.log('   • Base de datos: ⚠️  Simulada (no conectada)');
+      console.log(
+        `   • Base de datos: ${dbDisponible ? '✅ Conectada' : '⚠️  Simulada (no conectada)'}`
+      );
       console.log('   • Notificaciones Multi-Canal: ⚠️  Simulado');
       console.log('   • Sistema de Schedulers: ✅ Activo y automatizado\n');
       

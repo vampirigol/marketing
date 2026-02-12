@@ -107,6 +107,7 @@ export class UsuarioSistemaRepositoryPostgres implements IUsuarioSistemaReposito
         sucursalId: 'sucursal_asignada',
         ultimoAcceso: 'ultimo_acceso',
         ultimaActualizacion: 'ultima_actualizacion',
+        fotoUrl: 'foto_url',
       };
       return mapping[key] || key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
     };
@@ -183,6 +184,7 @@ export class UsuarioSistemaRepositoryPostgres implements IUsuarioSistemaReposito
       email: row.email,
       nombreCompleto: row.nombre_completo,
       telefono: row.telefono,
+      fotoUrl: row.foto_url || undefined,
       rol: row.rol,
       permisos: permisosParsed || [],
       sucursalId: row.sucursal_asignada || undefined,
@@ -210,6 +212,7 @@ export class UsuarioSistemaRepository implements IUsuarioSistemaRepository {
   constructor() {
     // Usuario Admin por defecto
     this.crearUsuarioInicial();
+    this.crearDoctorInicial();
   }
 
   private crearUsuarioInicial(): void {
@@ -229,6 +232,25 @@ export class UsuarioSistemaRepository implements IUsuarioSistemaRepository {
     };
 
     this.usuarios.set(adminInicial.id, adminInicial);
+  }
+
+  private crearDoctorInicial(): void {
+    const doctorInicial: UsuarioSistema = {
+      id: 'usr_medico_001',
+      username: 'medico',
+      password: '$2b$10$2PqP0BIKkwW3fk0H9pVA3.4Ir2GiMBqhH3Elu0X0olZWTBnlXukXa', // medico123
+      email: 'medico@crm.com',
+      nombreCompleto: 'Dr. Medicina Integral',
+      telefono: '',
+      rol: 'Medico',
+      permisos: [],
+      estado: 'Activo',
+      creadoPor: 'sistema',
+      fechaCreacion: new Date(),
+      ultimaActualizacion: new Date()
+    };
+
+    this.usuarios.set(doctorInicial.id, doctorInicial);
   }
 
   async crear(usuario: UsuarioSistema): Promise<UsuarioSistema> {

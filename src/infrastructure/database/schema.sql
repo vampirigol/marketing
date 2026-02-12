@@ -42,6 +42,7 @@ CREATE TABLE usuarios (
   email VARCHAR(100) UNIQUE NOT NULL,
   telefono VARCHAR(20) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
+  foto_url TEXT,
   rol VARCHAR(50) NOT NULL CHECK (rol IN ('Admin', 'Finanzas', 'Contact_Center', 'Recepcion', 'Medico')),
   permisos JSONB NOT NULL DEFAULT '[]'::jsonb,
   sucursal_asignada UUID REFERENCES sucursales(id),
@@ -140,6 +141,10 @@ CREATE TABLE citas (
   fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   ultima_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   notas TEXT
+  ,
+  telemedicina_link TEXT,
+  preconsulta JSONB,
+  documentos JSONB
 );
 
 -- ============================================
@@ -256,6 +261,26 @@ CREATE TABLE mensajes_matrix (
   leido BOOLEAN NOT NULL DEFAULT false,
   fecha_lectura TIMESTAMP
 );
+
+-- ============================================
+-- TABLA: plantillas_respuesta
+-- ============================================
+CREATE TABLE IF NOT EXISTS plantillas_respuesta (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  usuario_id UUID REFERENCES usuarios(id) ON DELETE CASCADE,
+  nombre VARCHAR(100) NOT NULL,
+  contenido TEXT NOT NULL,
+  etiquetas TEXT[] DEFAULT ARRAY[]::TEXT[],
+  es_global BOOLEAN NOT NULL DEFAULT false,
+  activa BOOLEAN NOT NULL DEFAULT true,
+  uso_count INTEGER NOT NULL DEFAULT 0,
+  creado_por UUID REFERENCES usuarios(id),
+  fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ultima_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_plantillas_usuario ON plantillas_respuesta(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_plantillas_global ON plantillas_respuesta(es_global) WHERE es_global = true;
 
 -- ============================================
 -- TABLA: solicitudes_contacto
@@ -452,6 +477,94 @@ CREATE INDEX idx_automation_logs_rule ON automation_logs(rule_id);
 CREATE INDEX idx_automation_logs_fecha ON automation_logs(fecha);
 
 -- ============================================
+-- TABLAS: portal sucursales
+-- ============================================
+CREATE TABLE portal_noticias (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  titulo VARCHAR(200) NOT NULL,
+  contenido TEXT NOT NULL,
+  tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('general', 'local')),
+  sucursal_id UUID REFERENCES sucursales(id),
+  publicado_por UUID REFERENCES usuarios(id),
+  fecha_publicacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE portal_tareas (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sucursal_id UUID NOT NULL REFERENCES sucursales(id),
+  titulo VARCHAR(200) NOT NULL,
+  descripcion TEXT NOT NULL,
+  prioridad VARCHAR(20) NOT NULL CHECK (prioridad IN ('alta', 'media', 'baja')),
+  estado VARCHAR(20) NOT NULL CHECK (estado IN ('pendiente', 'recibida', 'en_progreso', 'terminada')),
+  fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  fecha_recibida TIMESTAMP,
+  fecha_inicio TIMESTAMP,
+  fecha_fin TIMESTAMP,
+  creado_por UUID REFERENCES usuarios(id)
+);
+
+CREATE TABLE portal_tarea_comentarios (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tarea_id UUID NOT NULL REFERENCES portal_tareas(id) ON DELETE CASCADE,
+  autor_id UUID REFERENCES usuarios(id),
+  autor_nombre VARCHAR(200) NOT NULL,
+  mensaje TEXT NOT NULL,
+  fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE portal_tarea_evidencias (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tarea_id UUID NOT NULL REFERENCES portal_tareas(id) ON DELETE CASCADE,
+  nombre VARCHAR(200) NOT NULL,
+  tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('imagen', 'archivo')),
+  data_uri TEXT,
+  url TEXT,
+  fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- TABLA: doctor_bloqueos
+-- ============================================
+CREATE TABLE doctor_bloqueos (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  medico_id UUID REFERENCES usuarios(id),
+  medico_nombre VARCHAR(200) NOT NULL,
+  tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('fecha', 'semanal')),
+  categoria VARCHAR(30) DEFAULT 'personal' CHECK (categoria IN ('vacaciones', 'comida', 'urgencia', 'personal', 'otro')),
+  fecha DATE,
+  dia_semana INTEGER CHECK (dia_semana BETWEEN 0 AND 6),
+  hora_inicio TIME,
+  hora_fin TIME,
+  motivo TEXT,
+  creado_por UUID REFERENCES usuarios(id),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS config_consultas (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  especialidad VARCHAR(100) NOT NULL,
+  tipo_consulta VARCHAR(50) NOT NULL CHECK (tipo_consulta IN ('Primera_Vez', 'Subsecuente', 'Urgencia', 'Telemedicina')),
+  duracion_minutos INTEGER NOT NULL DEFAULT 30 CHECK (duracion_minutos > 0),
+  intervalo_minutos INTEGER NOT NULL DEFAULT 15 CHECK (intervalo_minutos > 0),
+  max_empalmes INTEGER NOT NULL DEFAULT 1 CHECK (max_empalmes >= 0),
+  color_hex VARCHAR(7) DEFAULT '#3b82f6',
+  activo BOOLEAN NOT NULL DEFAULT true,
+  creado_por UUID REFERENCES usuarios(id),
+  fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ultima_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (especialidad, tipo_consulta)
+);
+
+CREATE INDEX idx_doctor_bloqueos_medico_fecha
+  ON doctor_bloqueos (medico_nombre, fecha);
+
+CREATE INDEX idx_doctor_bloqueos_medico_dia
+  ON doctor_bloqueos (medico_nombre, dia_semana);
+
+-- ============================================
 -- DATOS INICIALES
 -- ============================================
 
@@ -479,3 +592,107 @@ VALUES (
 COMMENT ON TABLE pacientes IS 'Tabla de pacientes. CRÍTICO: no_afiliacion no puede estar vacío para reportes de Antonio y Yaretzi';
 COMMENT ON COLUMN citas.reagendaciones IS 'Contador de reagendaciones. Si es_promocion=true, máximo 1 permitida';
 COMMENT ON TABLE abonos IS 'Registro de pagos. Debe coincidir con citas atendidas para el corte de caja';
+
+-- ============================================
+-- HISTORIAL CLÍNICO
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS consultas_medicas (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cita_id UUID REFERENCES citas(id) ON DELETE SET NULL,
+  paciente_id UUID NOT NULL REFERENCES pacientes(id) ON DELETE CASCADE,
+  doctor_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+  sucursal_id UUID REFERENCES sucursales(id),
+  fecha_consulta TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  tipo_consulta VARCHAR(50) NOT NULL CHECK (tipo_consulta IN ('Primera_Vez', 'Subsecuente', 'Urgencia', 'Telemedicina', 'Seguimiento')),
+  especialidad VARCHAR(100) NOT NULL,
+  motivo_consulta TEXT NOT NULL,
+  signos_vitales JSONB DEFAULT '{}'::jsonb,
+  exploracion_fisica TEXT,
+  diagnosticos JSONB DEFAULT '[]'::jsonb,
+  plan_tratamiento TEXT,
+  indicaciones TEXT,
+  pronostico VARCHAR(50) CHECK (pronostico IN ('Bueno', 'Reservado', 'Grave', NULL)),
+  notas_evolucion TEXT,
+  notas_privadas TEXT,
+  requiere_seguimiento BOOLEAN DEFAULT false,
+  fecha_proximo_control DATE,
+  dias_incapacidad INTEGER DEFAULT 0,
+  duracion_minutos INTEGER,
+  archivos_adjuntos JSONB DEFAULT '[]'::jsonb,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  firmado BOOLEAN DEFAULT false,
+  fecha_firma TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS signos_vitales_historico (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  paciente_id UUID NOT NULL REFERENCES pacientes(id) ON DELETE CASCADE,
+  consulta_id UUID REFERENCES consultas_medicas(id) ON DELETE SET NULL,
+  fecha_registro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  temperatura DECIMAL(4,1),
+  presion_sistolica INTEGER,
+  presion_diastolica INTEGER,
+  frecuencia_cardiaca INTEGER,
+  frecuencia_respiratoria INTEGER,
+  saturacion_oxigeno INTEGER,
+  peso DECIMAL(5,2),
+  talla DECIMAL(5,2),
+  imc DECIMAL(5,2),
+  glucosa INTEGER,
+  perimetro_abdominal DECIMAL(5,2),
+  perimetro_cefalico DECIMAL(5,2),
+  observaciones TEXT,
+  registrado_por UUID REFERENCES usuarios(id),
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS antecedentes_medicos (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  paciente_id UUID NOT NULL REFERENCES pacientes(id) ON DELETE CASCADE,
+  tipo_antecedente VARCHAR(50) NOT NULL CHECK (tipo_antecedente IN (
+    'Personal_Patologico',
+    'Personal_No_Patologico',
+    'Familiar',
+    'Quirurgico',
+    'Alergico',
+    'Traumatico',
+    'Transfusional',
+    'Ginecoobstetrico'
+  )),
+  descripcion TEXT NOT NULL,
+  fecha_diagnostico DATE,
+  esta_activo BOOLEAN DEFAULT true,
+  tratamiento_actual TEXT,
+  parentesco VARCHAR(50),
+  notas TEXT,
+  registrado_por UUID REFERENCES usuarios(id),
+  fecha_registro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS medicamentos_actuales (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  paciente_id UUID NOT NULL REFERENCES pacientes(id) ON DELETE CASCADE,
+  nombre_medicamento VARCHAR(200) NOT NULL,
+  dosis VARCHAR(100) NOT NULL,
+  via_administracion VARCHAR(50) CHECK (via_administracion IN ('Oral', 'Intravenosa', 'Intramuscular', 'Subcutanea', 'Topica', 'Oftalmica', 'Otica', 'Nasal', 'Rectal', 'Otra')),
+  frecuencia VARCHAR(100),
+  fecha_inicio DATE NOT NULL,
+  fecha_fin DATE,
+  es_cronico BOOLEAN DEFAULT false,
+  indicacion TEXT,
+  prescrito_por VARCHAR(200),
+  activo BOOLEAN DEFAULT true,
+  registrado_por UUID REFERENCES usuarios(id),
+  fecha_registro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_consultas_paciente ON consultas_medicas(paciente_id, fecha_consulta DESC);
+CREATE INDEX IF NOT EXISTS idx_consultas_doctor ON consultas_medicas(doctor_id, fecha_consulta DESC);
+CREATE INDEX IF NOT EXISTS idx_consultas_fecha ON consultas_medicas(fecha_consulta DESC);
+CREATE INDEX IF NOT EXISTS idx_signos_paciente ON signos_vitales_historico(paciente_id, fecha_registro DESC);
+CREATE INDEX IF NOT EXISTS idx_antecedentes_paciente ON antecedentes_medicos(paciente_id, tipo_antecedente);
+CREATE INDEX IF NOT EXISTS idx_medicamentos_paciente ON medicamentos_actuales(paciente_id, activo);

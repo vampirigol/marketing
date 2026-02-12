@@ -1,4 +1,5 @@
 import { api } from './api';
+import type { Paciente } from '@/types';
 
 export interface PacientePayload {
   nombreCompleto: string;
@@ -16,31 +17,17 @@ export interface PacientePayload {
 }
 
 export const pacientesService = {
-  async crear(payload: PacientePayload) {
+  // Crear paciente (maneja conflicto por teléfono)
+  async crear(data: PacientePayload | Partial<Paciente>) {
     try {
-      const response = await api.post('/pacientes', payload);
-      return response.data.paciente;
+      const response = await api.post('/pacientes', data);
+      return response.data.paciente ?? response.data;
     } catch (error: any) {
       if (error?.response?.status === 409 && error.response.data?.paciente) {
         return error.response.data.paciente;
       }
       throw error;
     }
-  },
-
-  async obtenerPorId(id: string) {
-    const response = await api.get(`/pacientes/${id}`);
-    return response.data.paciente;
-  },
-};
-import { api } from './api';
-import type { Paciente } from '@/types';
-
-export const pacientesService = {
-  // Crear paciente
-  async crear(data: Partial<Paciente>) {
-    const response = await api.post('/pacientes', data);
-    return response.data;
   },
 
   // Obtener paciente por ID
@@ -75,6 +62,14 @@ export const pacientesService = {
   async obtenerPorNoAfiliacion(noAfiliacion: string) {
     const response = await api.get(`/pacientes/afiliacion/${noAfiliacion}`);
     return response.data.paciente;
+  },
+
+  /** Obtener siguiente número de afiliación único (generado en backend, sin duplicados). */
+  async obtenerSiguienteNoAfiliacion(): Promise<string> {
+    const response = await api.get<{ success: boolean; noAfiliacion: string }>(
+      '/pacientes/siguiente-afiliacion'
+    );
+    return response.data.noAfiliacion;
   },
 };
 

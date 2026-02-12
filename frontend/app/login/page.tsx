@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import logoClinicas from "../../../src/Logos Clínicas/Logos Red de Clínicas Adventistas/cruz clinica sin fondo.png";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -52,8 +51,10 @@ export default function LoginPage() {
         <div className="flex items-center gap-6">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200/70 bg-white p-3 shadow-md">
             <Image
-              src={logoClinicas}
+              src="/logo-clinicas.png"
               alt="Clinicas Adventistas"
+              width={80}
+              height={80}
               className="h-full w-full object-contain"
               priority
             />

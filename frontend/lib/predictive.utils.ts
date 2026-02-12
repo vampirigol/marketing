@@ -8,7 +8,7 @@ interface LeadPrediction {
   razones: string[];
 }
 
-const statusBaseScore: Record<Lead['status'], number> = {
+const statusBaseScore: Partial<Record<Lead['status'], number>> = {
   new: 0.45,
   reviewing: 0.55,
   rejected: 0.1,
@@ -16,9 +16,11 @@ const statusBaseScore: Record<Lead['status'], number> = {
   open: 0.5,
   'in-progress': 0.62,
   'open-deal': 0.78,
+  'agendados-mobile': 0.6,
+  'citas-locales': 0.65,
 };
 
-const canalBoost: Record<CanalType, number> = {
+const canalBoost: Partial<Record<CanalType, number>> = {
   whatsapp: 0.07,
   tiktok: 0.06,
   instagram: 0.05,
@@ -26,6 +28,7 @@ const canalBoost: Record<CanalType, number> = {
   'fan-page': 0.03,
   facebook: 0.02,
   email: 0.01,
+  'google-ads': 0.04,
 };
 
 export function obtenerPrediccionLead(lead: Lead): LeadPrediction {

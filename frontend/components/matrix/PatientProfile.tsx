@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   User, 
   Phone, 
@@ -19,66 +19,91 @@ import { Badge } from '@/components/ui/Badge';
 import { AgendarCitaModal } from './AgendarCitaModal';
 import { HistorialPacienteModal } from './HistorialPacienteModal';
 import { RegistrarPagoModal } from './RegistrarPagoModal';
+import { pacientesService } from '@/lib/pacientes.service';
+import { citasService } from '@/lib/citas.service';
 
 interface PatientProfileProps {
   pacienteId?: string;
 }
 
+interface CitaHistorial {
+  id: string;
+  fecha: Date;
+  tipo: string;
+  doctor: string;
+  estado: string;
+  esPromocion: boolean;
+}
+
 export function PatientProfile({ 
   pacienteId
 }: PatientProfileProps) {
+  const [paciente, setPaciente] = useState<Paciente | null>(null);
+  const [historialCitas, setHistorialCitas] = useState<CitaHistorial[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [errorPaciente, setErrorPaciente] = useState<string | null>(null);
   const [notas, setNotas] = useState<string[]>([]);
   const [nuevaNota, setNuevaNota] = useState('');
   
-  // Estados para controlar los modales
   const [modalAgendarCita, setModalAgendarCita] = useState(false);
   const [modalHistorial, setModalHistorial] = useState(false);
   const [modalRegistrarPago, setModalRegistrarPago] = useState(false);
 
-  // TODO: Cargar datos reales del paciente desde API
-  const paciente: Paciente | null = pacienteId ? {
-    id: pacienteId,
-    noAfiliacion: 'RCA-2024-0123',
-    nombreCompleto: 'María González López',
-    fechaNacimiento: new Date('1992-03-15'),
-    edad: 32,
-    sexo: 'F' as const,
-    telefono: '+52 555-1234-5678',
-    whatsapp: '+52 555-1234-5678',
-    email: 'maria.gonzalez@email.com',
-    tipoAfiliacion: 'Titular' as const,
-    calle: 'Av. Insurgentes Sur 1234',
-    colonia: 'Del Valle',
-    ciudad: 'Guadalajara',
-    estado: 'Jalisco',
-    codigoPostal: '03100',
-    alergias: 'Penicilina',
-    padecimientos: '',
-    contactoEmergencia: 'Juan González',
-    telefonoEmergencia: '+52 555-9876-5432',
-    fechaRegistro: new Date(),
-    ultimaActualizacion: new Date(),
-    activo: true
-  } : null;
-
-  const historialCitas = pacienteId ? [
-    {
-      id: '1',
-      fecha: new Date('2026-01-15'),
-      tipo: 'Medicina General',
-      doctor: 'Dr. López',
-      estado: 'Atendida',
-      esPromocion: true
-    },
-    {
-      id: '2',
-      fecha: new Date('2025-12-10'),
-      tipo: 'Consulta General',
-      doctor: 'Dr. López',
-      estado: 'Atendida',
-      esPromocion: false
+  useEffect(() => {
+    if (!pacienteId) {
+      setPaciente(null);
+      setHistorialCitas([]);
+      setErrorPaciente(null);
+      return;
     }
-  ] : [];
+    const cargar = async () => {
+      setCargando(true);
+      setErrorPaciente(null);
+      try {
+        const [pac, citas] = await Promise.all([
+          pacientesService.obtenerPorId(pacienteId).catch(() => null),
+          citasService.obtenerPorPaciente(pacienteId).catch(() => []),
+        ]);
+        setPaciente(pac ?? null);
+        const citasMapped: CitaHistorial[] = (citas || []).map((c: any) => ({
+          id: c.id,
+          fecha: new Date(c.fechaCita || c.fecha),
+          tipo: c.especialidad || c.tipoConsulta || 'Consulta',
+          doctor: c.medicoAsignado || 'Doctor',
+          estado: c.estado || 'Agendada',
+          esPromocion: Boolean(c.esPromocion),
+        }));
+        setHistorialCitas(citasMapped);
+      } catch {
+        setErrorPaciente('No se pudo cargar el perfil');
+        setPaciente(null);
+        setHistorialCitas([]);
+      } finally {
+        setCargando(false);
+      }
+    };
+    cargar();
+  }, [pacienteId]);
+
+  // Escuchar cita agendada para refrescar historial
+  useEffect(() => {
+    if (!pacienteId) return;
+    const handler = () => {
+      citasService.obtenerPorPaciente(pacienteId).then((citas: any[]) => {
+        const mapped: CitaHistorial[] = (citas || []).map((c: any) => ({
+          id: c.id,
+          fecha: new Date(c.fechaCita || c.fecha),
+          tipo: c.especialidad || c.tipoConsulta || 'Consulta',
+          doctor: c.medicoAsignado || 'Doctor',
+          estado: c.estado || 'Agendada',
+          esPromocion: Boolean(c.esPromocion),
+        }));
+        setHistorialCitas(mapped);
+      }).catch(() => null);
+    };
+    window.addEventListener('citaAgendada', handler);
+    return () => window.removeEventListener('citaAgendada', handler);
+  }, [pacienteId]);
 
   const segmentoPaciente =
     historialCitas.length === 0
@@ -146,20 +171,35 @@ export function PatientProfile({
     );
   }
 
+  if (cargando) {
+    return (
+      <div className="w-[360px] border-l border-gray-200 bg-white p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Cargando perfil...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!paciente) {
     return (
       <div className="w-[360px] border-l border-gray-200 bg-white p-6">
         <div className="flex items-center gap-2 text-orange-600 bg-orange-50 p-3 rounded-lg">
           <AlertCircle className="w-5 h-5" />
-          <p className="text-sm">Paciente no registrado</p>
+          <p className="text-sm">{errorPaciente || 'Paciente no registrado'}</p>
         </div>
         <Button
           onClick={() => setModalAgendarCita(true)}
           className="w-full mt-4"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Registrar Nuevo Paciente
+          Agendar Cita (crear paciente)
         </Button>
+        <AgendarCitaModal
+          isOpen={modalAgendarCita}
+          onClose={() => setModalAgendarCita(false)}
+        />
       </div>
     );
   }
@@ -457,7 +497,7 @@ export function PatientProfile({
       <AgendarCitaModal
         isOpen={modalAgendarCita}
         onClose={() => setModalAgendarCita(false)}
-        pacienteId={pacienteId}
+        pacienteId={paciente.id}
         pacienteNombre={paciente.nombreCompleto}
       />
 

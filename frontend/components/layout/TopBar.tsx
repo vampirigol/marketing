@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { Bell, Search } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { DemoNotification, demoNotifications } from '@/lib/demo-notifications';
@@ -8,6 +8,13 @@ import { DemoNotification, demoNotifications } from '@/lib/demo-notifications';
 export function TopBar() {
   const [notifications, setNotifications] = useState<DemoNotification[]>(demoNotifications);
   const [isOpen, setIsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [usuario, setUsuario] = useState<{ nombre: string; rol: string }>({
+    nombre: 'Keila Gardenía Anahi Rodríguez Gallardo',
+    rol: 'Contact Center',
+  });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -22,6 +29,60 @@ export function TopBar() {
 
   const handleMarkRead = (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  };
+
+  useEffect(() => {
+    const stored = localStorage.getItem('auth_user');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const nombre = parsed?.nombreCompleto || parsed?.nombre || parsed?.username || 'Usuario';
+        const rol = parsed?.rol || 'Usuario';
+        setUsuario({ nombre, rol });
+      } catch {
+        // ignore parse errors
+      }
+    }
+    const storedAvatar = localStorage.getItem('perfil_avatar');
+    if (storedAvatar) {
+      setAvatarUrl(storedAvatar);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    if (isUserMenuOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
+
+  const abreviarNombre = (nombre: string) => {
+    if (nombre.length <= 32) return nombre;
+    const partes = nombre.split(' ').filter(Boolean);
+    if (partes.length <= 2) return nombre;
+    const nombres = partes.slice(0, 2).join(' ');
+    const apellidos = partes.slice(2).map((p) => `${p.charAt(0).toUpperCase()}.`).join(' ');
+    return `${nombres} ${apellidos}`.trim();
+  };
+
+  const obtenerIniciales = (nombre: string) => {
+    const partes = nombre.split(' ').filter(Boolean);
+    return partes.slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join('');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    window.location.href = '/login';
   };
 
   return (
@@ -92,14 +153,49 @@ export function TopBar() {
         )}
 
         {/* Usuario */}
-        <div className="flex items-center space-x-3 px-4 py-2 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-50 cursor-pointer transition-all duration-200 group">
-          <div className="text-right">
-            <p className="text-sm font-semibold text-gray-800">Keila Gardenía Anahi Rodríguez Gallardo</p>
-            <p className="text-xs text-gray-500">Contact Center</p>
-          </div>
-          <div className="w-11 h-11 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200">
-            <span className="text-white font-semibold">KM</span>
-          </div>
+        <div ref={userMenuRef} className="relative">
+          <button
+            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+            className="flex items-center space-x-3 px-4 py-2 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-50 cursor-pointer transition-all duration-200 group"
+          >
+            <div className="text-right">
+              <p className="text-sm font-semibold text-gray-800">
+                {abreviarNombre(usuario.nombre)}
+              </p>
+              <p className="text-xs text-gray-500">{usuario.rol}</p>
+            </div>
+            <div className="w-11 h-11 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200 overflow-hidden">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-white font-semibold">{obtenerIniciales(usuario.nombre)}</span>
+              )}
+            </div>
+          </button>
+
+          {isUserMenuOpen && (
+            <div className="absolute right-0 top-14 w-44 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-20">
+              <button
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  setIsUserMenuOpen(false);
+                  window.location.href = '/perfil';
+                }}
+              >
+                Ver perfil
+              </button>
+              <button
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                onClick={handleLogout}
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

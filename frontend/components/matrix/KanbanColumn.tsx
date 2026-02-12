@@ -28,8 +28,11 @@ interface KanbanColumnProps {
   density?: 'comfortable' | 'compact' | 'dense';
   alertSettings?: AlertSettings;
   customFieldsSettings?: CustomFieldsSettings;
-  getPrimaryAction?: (lead: Lead) => { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' } | null;
-  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada') => void;
+  getPrimaryAction?: (lead: Lead) => { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia' } | null;
+  getSecondaryAction?: (lead: Lead) => { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia' } | null;
+  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia') => void;
+  onEnviarRecordatorio?: (citaId: string) => void | Promise<void>;
+  slaHorasByStatus?: Partial<Record<LeadStatus, number>>;
   hideConversionAction?: boolean;
 }
 
@@ -48,11 +51,17 @@ function arePropsEqual(prevProps: KanbanColumnProps, nextProps: KanbanColumnProp
     return false;
   }
 
-  // Comparación rápida de IDs de leads (suficiente para detectar cambios)
+  // Misma longitud; si no, hay cambio
+  if (prevProps.leads.length !== nextProps.leads.length) return false;
+
+  // Comparación segura: evitar undefined al buscar/filtrar
   for (let i = 0; i < prevProps.leads.length; i++) {
+    const prevLead = prevProps.leads[i];
+    const nextLead = nextProps.leads[i];
+    if (!prevLead || !nextLead) return false;
     if (
-      prevProps.leads[i].id !== nextProps.leads[i].id ||
-      prevProps.leads[i].fechaActualizacion?.getTime() !== nextProps.leads[i].fechaActualizacion?.getTime()
+      prevLead.id !== nextLead.id ||
+      prevLead.fechaActualizacion?.getTime() !== nextLead.fechaActualizacion?.getTime()
     ) {
       return false;
     }
@@ -82,7 +91,10 @@ export const KanbanColumn = memo(function KanbanColumn({
   alertSettings,
   customFieldsSettings,
   getPrimaryAction,
+  getSecondaryAction,
   onPrimaryAction,
+  onEnviarRecordatorio,
+  slaHorasByStatus,
   hideConversionAction = false,
 }: KanbanColumnProps) {
   
@@ -95,8 +107,8 @@ export const KanbanColumn = memo(function KanbanColumn({
     },
   });
 
-  // IDs para SortableContext
-  const leadIds = useMemo(() => leads.map(lead => lead.id), [leads]);
+  // IDs para SortableContext (filtrar posibles undefined tras búsqueda/filtrado)
+  const leadIds = useMemo(() => leads.filter(Boolean).map(lead => lead.id), [leads]);
 
   // Memoizar clases de color (se calcula una sola vez por color)
   const colors = useMemo(() => obtenerClasesColor(color), [color]);
@@ -223,7 +235,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                   : 'space-y-3 p-3'
               }
             >
-              {leads.map((lead) => (
+              {leads.filter(Boolean).map((lead) => (
                 <LeadCard
                   key={lead.id}
                   lead={lead}
@@ -234,7 +246,10 @@ export const KanbanColumn = memo(function KanbanColumn({
                   alertSettings={alertSettings}
                   customFieldsSettings={customFieldsSettings}
                   primaryAction={getPrimaryAction?.(lead) ?? null}
+                  secondaryAction={getSecondaryAction?.(lead) ?? null}
                   onPrimaryAction={onPrimaryAction}
+                  onEnviarRecordatorio={onEnviarRecordatorio}
+                  slaHorasByStatus={slaHorasByStatus}
                   hideConversionAction={hideConversionAction}
                 />
               ))}

@@ -44,9 +44,14 @@ export const citasService = {
     intervaloMin?: number;
     maxEmpalmes?: number;
   }) {
-    const { sucursalId, ...rest } = params;
+    const { sucursalId, doctorId, ...rest } = params;
+    // Solo enviar doctorId como query param si el endpoint lo requiere
+    // Si el backend espera doctorId en el path, NO lo envíes como query param
     const response = await api.get(`/citas/disponibilidad/${sucursalId}`, {
-      params: rest,
+      params: {
+        ...rest,
+        ...(doctorId ? { doctorId } : {})
+      },
     });
     return response.data.slots as Array<{
       hora: string;
@@ -77,6 +82,11 @@ export const citasService = {
     return response.data;
   },
 
+  async sincronizarCitasDesdeCrm() {
+    const response = await api.post('/crm/sync-citas');
+    return response.data;
+  },
+
   // Marcar llegada
   async marcarLlegada(id: string, data?: { horaLlegada?: string }) {
     const response = await api.put(`/citas/${id}/llegada`, data || {});
@@ -87,6 +97,30 @@ export const citasService = {
   async cancelar(id: string, motivo: string) {
     const response = await api.put(`/citas/${id}/cancelar`, { motivo });
     return response.data.cita;
+  },
+
+  // Listar citas paginadas
+  async listarPaginado(params: { page?: number; pageSize?: number; [key: string]: any }) {
+    const response = await api.get('/citas/paginado', { params });
+    return response.data;
+  },
+
+  // Obtener citas por rango de fechas
+  async obtenerPorRango(params: { fechaInicio: string; fechaFin: string; [key: string]: any }) {
+    const response = await api.get('/citas/rango', { params });
+    return response.data.citas;
+  },
+
+  // Listar lista de espera
+  async listarListaEspera(params?: { estado?: string }) {
+    const response = await api.get('/citas/lista-espera', { params });
+    return response.data.lista || response.data;
+  },
+
+  // Asignar cita desde lista de espera
+  async asignarListaEspera(solicitudId: string, data: { citaId: string; pacienteId: string }) {
+    const response = await api.post(`/citas/lista-espera/${solicitudId}/asignar`, data);
+    return response.data;
   },
 };
 

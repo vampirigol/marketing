@@ -7,7 +7,10 @@ import { citasService } from '@/lib/citas.service';
 
 interface DisponibilidadFormProps {
   sucursalId: string;
-  doctorId: string;
+  /** ID del doctor (doc-1, etc.) - opcional */
+  doctorId?: string;
+  /** Nombre del doctor - REQUERIDO para filtrar citas y bloqueos correctamente en el backend */
+  doctorNombre?: string;
   onDateSelect: (fecha: Date, hora: string) => void;
   onCancel: () => void;
 }
@@ -22,6 +25,7 @@ interface Slot {
 export function DisponibilidadForm({
   sucursalId,
   doctorId,
+  doctorNombre,
   onDateSelect,
   onCancel,
 }: DisponibilidadFormProps) {
@@ -44,8 +48,9 @@ export function DisponibilidadForm({
       try {
         const slotsData = await citasService.obtenerDisponibilidad({
           sucursalId,
-          doctorId,
           fecha,
+          doctorNombre: doctorNombre || undefined,
+          doctorId: doctorNombre ? undefined : doctorId,
         });
         setSlots(slotsData);
       } catch (err) {
@@ -56,14 +61,15 @@ export function DisponibilidadForm({
     };
 
     cargarDisponibilidad();
-  }, [fecha, sucursalId, doctorId]);
+  }, [fecha, sucursalId, doctorId, doctorNombre]);
 
   const handleSeleccionar = () => {
     if (!horaSeleccionada) return;
 
     const [hora, minuto] = horaSeleccionada.split(':').map(Number);
-    const fechaObj = new Date(fecha);
-    fechaObj.setHours(hora, minuto, 0, 0);
+    // Construir fecha en hora local: new Date('YYYY-MM-DD') se interpreta como UTC y puede cambiar el día en otras zonas
+    const [y, m, d] = fecha.split('-').map(Number);
+    const fechaObj = new Date(y, m - 1, d, hora, minuto, 0, 0);
 
     onDateSelect(fechaObj, horaSeleccionada);
   };

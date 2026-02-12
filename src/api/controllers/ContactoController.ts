@@ -4,29 +4,28 @@
  */
 
 import { Request, Response } from 'express';
-import { 
-  SolicitarContactoAgenteUseCase 
+import {
+  SolicitarContactoAgenteUseCase
 } from '../../core/use-cases/SolicitarContactoAgente';
-import { 
-  solicitudContactoRepository 
+import {
+  solicitudContactoRepository
 } from '../../infrastructure/database/repositories/SolicitudContactoRepository';
-import { 
-  CATALOGO_MOTIVOS_CONTACTO 
+import {
+  CATALOGO_MOTIVOS_CONTACTO
 } from '../../core/entities/SolicitudContacto';
+import { PacienteRepositoryPostgres } from '../../infrastructure/database/repositories/PacienteRepository';
+import Database from '../../infrastructure/database/Database';
+import { NotificacionRepositoryPostgres } from '../../infrastructure/database/repositories/NotificacionRepository';
+import { UsuarioSistemaRepositoryPostgres } from '../../infrastructure/database/repositories/UsuarioSistemaRepository';
 
 export class ContactoController {
-  private solicitarContactoUseCase: SolicitarContactoAgenteUseCase;
-
-  constructor() {
-    // Inicializar caso de uso con repositorio
-    this.solicitarContactoUseCase = new SolicitarContactoAgenteUseCase(
-      solicitudContactoRepository
-    );
+  private getUseCase(): SolicitarContactoAgenteUseCase {
+    return new SolicitarContactoAgenteUseCase(solicitudContactoRepository);
   }
 
   /**
    * POST /api/contactos
-   * Crea una nueva solicitud de contacto
+   * Crea una nueva solicitud de contacto (lead). Asigna automáticamente número de afiliado.
    */
   async crear(req: Request, res: Response): Promise<void> {
     try {
@@ -44,7 +43,15 @@ export class ContactoController {
         origen
       } = req.body;
 
-      const resultado = await this.solicitarContactoUseCase.ejecutar({
+      let noAfiliacion: string | undefined;
+      try {
+        const pacienteRepo = new PacienteRepositoryPostgres();
+        noAfiliacion = await pacienteRepo.obtenerSiguienteNoAfiliacion();
+      } catch {
+        // Si falla (ej. BD no disponible), continuar sin número de afiliado
+      }
+
+      const resultado = await this.getUseCase().ejecutar({
         pacienteId,
         nombreCompleto,
         telefono,
@@ -56,8 +63,12 @@ export class ContactoController {
         motivoDetalle,
         preferenciaContacto,
         origen: origen || 'Web',
-        creadoPor: 'Cliente'
+        creadoPor: 'Cliente',
+        noAfiliacion,
       });
+
+      // Notificar a Contact Center y Admin (in-app + disponibilidad para push/email/Matrix)
+      this.notificarNuevoLeadAContactCenter(resultado.solicitud).catch(() => {});
 
       res.status(201).json({
         success: true,
@@ -72,6 +83,35 @@ export class ContactoController {
         success: false,
         error: errorMessage
       });
+    }
+  }
+
+  /**
+   * Crea notificaciones in-app para usuarios Contact_Center y Admin (nuevo lead).
+   * Permite que el frontend/Matrix muestre "Nuevo lead" y en el futuro push/email.
+   */
+  private async notificarNuevoLeadAContactCenter(solicitud: { id: string; nombreCompleto: string; sucursalNombre: string; origen: string; noAfiliacion?: string }): Promise<void> {
+    try {
+      const pool = Database.getInstance().getPool();
+      const notifRepo = new NotificacionRepositoryPostgres(pool);
+      const userRepo = new UsuarioSistemaRepositoryPostgres();
+      const contactCenter = await userRepo.obtenerPorRol('Contact_Center');
+      const admins = await userRepo.obtenerPorRol('Admin');
+      const userIds = [...new Set([...contactCenter, ...admins].map((u) => u.id))];
+      const titulo = 'Nuevo lead';
+      const mensaje = `${solicitud.nombreCompleto} · ${solicitud.sucursalNombre} · Origen: ${solicitud.origen}${solicitud.noAfiliacion ? ` · No. Afiliado: ${solicitud.noAfiliacion}` : ''}`;
+      for (const usuarioId of userIds) {
+        await notifRepo.crear({
+          usuarioId,
+          tipo: 'nuevo_lead',
+          titulo,
+          mensaje,
+          data: { solicitudId: solicitud.id },
+          canal: 'App',
+        });
+      }
+    } catch {
+      // No bloquear la creación del lead si falla la notificación
     }
   }
 
@@ -138,7 +178,7 @@ export class ContactoController {
 
       let solicitudes;
       if (sucursalId) {
-        solicitudes = await this.solicitarContactoUseCase.obtenerPendientesPorSucursal(
+        solicitudes = await this.getUseCase().obtenerPendientesPorSucursal(
           sucursalId as string
         );
       } else {
@@ -198,7 +238,7 @@ export class ContactoController {
         return;
       }
 
-      const solicitud = await this.solicitarContactoUseCase.asignarAgente(
+      const solicitud = await this.getUseCase().asignarAgente(
         id,
         agenteId,
         agenteNombre
@@ -227,7 +267,7 @@ export class ContactoController {
       const { id } = req.params;
       const { notas } = req.body;
 
-      const solicitud = await this.solicitarContactoUseCase.iniciarContacto(id, notas);
+      const solicitud = await this.getUseCase().iniciarContacto(id, notas);
 
       res.json({
         success: true,
@@ -260,7 +300,7 @@ export class ContactoController {
         return;
       }
 
-      const solicitud = await this.solicitarContactoUseCase.resolver(id, resolucion);
+      const solicitud = await this.getUseCase().resolver(id, resolucion);
 
       res.json({
         success: true,

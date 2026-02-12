@@ -149,23 +149,13 @@ function ToastItem({ toast, onRemove }: ToastItemProps) {
       {toast.duration && toast.duration > 0 && (
         <div className="mt-3 h-1 bg-black/10 rounded-full overflow-hidden">
           <div
-            className={`h-full ${config.progressBar} rounded-full animate-progress`}
+            className={`h-full ${config.progressBar} rounded-full`}
             style={{
-              animation: `progress ${toast.duration}ms linear forwards`
+              animation: `toast-progress ${toast.duration}ms linear forwards`
             }}
           />
         </div>
       )}
-
-      <style jsx>{`
-        @keyframes progress {
-          from { width: 100%; }
-          to { width: 0%; }
-        }
-        .animate-progress {
-          animation: progress ${toast.duration}ms linear forwards;
-        }
-      `}</style>
     </div>
   );
 }

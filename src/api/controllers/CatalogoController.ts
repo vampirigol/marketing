@@ -58,7 +58,8 @@ interface CatalogoPromocion {
   aplicaPrimeraVez?: boolean;
 }
 
-const sucursales: CatalogoSucursal[] = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Fallback para cuando no hay DB
+const sucursalesFallback: CatalogoSucursal[] = [
   {
     id: 'suc-1',
     nombre: 'Valle de la Trinidad',
@@ -127,7 +128,7 @@ const sucursales: CatalogoSucursal[] = [
   },
   {
     id: 'suc-7',
-    nombre: 'Clínica Virtual Adventista',
+    nombre: 'Clínica Adventista Virtual',
     ciudad: 'Virtual',
     estado: 'Nacional',
     direccion: 'Servicio en Línea',
@@ -162,48 +163,43 @@ const especialidades: CatalogoEspecialidad[] = [
   { id: 'esp-10', nombre: 'Laboratorio Clínico', descripcion: 'Análisis clínicos y estudios' },
   { id: 'esp-11', nombre: 'Laboratorio Dental', descripcion: 'Prótesis y trabajos dentales' },
   { id: 'esp-12', nombre: 'Óptica', descripcion: 'Lentes y accesorios visuales' },
+  { id: 'esp-13', nombre: 'Consejería Pastoral', descripcion: 'Acompañamiento y orientación' },
 ];
 
 const doctores: CatalogoDoctor[] = [
-  // Valle de la Trinidad
-  { id: 'doc-1', nombre: 'Dr. Medicina Integral', especialidadId: 'esp-1', sucursalId: 'suc-1', horario: { inicio: '08:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 3, activo: true },
-  { id: 'doc-2', nombre: 'Dr. Oftalmología', especialidadId: 'esp-4', sucursalId: 'suc-1', horario: { inicio: '08:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-3', nombre: 'Dr. Odontología', especialidadId: 'esp-3', sucursalId: 'suc-1', horario: { inicio: '09:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-4', nombre: 'Dr. Fisioterapia', especialidadId: 'esp-5', sucursalId: 'suc-1', horario: { inicio: '08:00', fin: '17:00', intervaloMin: 30 }, capacidadEmpalmes: 3, activo: true },
-  
-  // Guadalajara
-  { id: 'doc-5', nombre: 'Dr. Medicina Integral GDL', especialidadId: 'esp-1', sucursalId: 'suc-2', horario: { inicio: '08:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 3, activo: true },
-  { id: 'doc-6', nombre: 'Dr. Oftalmología GDL', especialidadId: 'esp-4', sucursalId: 'suc-2', horario: { inicio: '08:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-7', nombre: 'Dr. Odontología GDL', especialidadId: 'esp-3', sucursalId: 'suc-2', horario: { inicio: '09:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-8', nombre: 'Lic. Nutrición GDL', especialidadId: 'esp-8', sucursalId: 'suc-2', horario: { inicio: '09:00', fin: '17:00', intervaloMin: 45 }, capacidadEmpalmes: 2, activo: true },
-  
   // Ciudad Obregón
-  { id: 'doc-9', nombre: 'Dr. Medicina Integral Obregón', especialidadId: 'esp-1', sucursalId: 'suc-3', horario: { inicio: '08:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 3, activo: true },
-  { id: 'doc-10', nombre: 'Dr. Oftalmología Obregón', especialidadId: 'esp-4', sucursalId: 'suc-3', horario: { inicio: '08:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-11', nombre: 'Dr. Odontología Obregón', especialidadId: 'esp-3', sucursalId: 'suc-3', horario: { inicio: '09:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-12', nombre: 'Lic. Nutrición Obregón', especialidadId: 'esp-8', sucursalId: 'suc-3', horario: { inicio: '09:00', fin: '17:00', intervaloMin: 45 }, capacidadEmpalmes: 2, activo: true },
-  
+  { id: 'doc-1', nombre: 'Aslysh Aboyte', especialidadId: 'esp-3', sucursalId: 'suc-3', horario: { inicio: '09:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-2', nombre: 'Daniel Balderas', especialidadId: 'esp-3', sucursalId: 'suc-3', horario: { inicio: '10:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-3', nombre: 'Adriana Moreno', especialidadId: 'esp-3', sucursalId: 'suc-3', horario: { inicio: '08:30', fin: '17:30', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-4', nombre: 'Fernanda Mendoza', especialidadId: 'esp-3', sucursalId: 'suc-3', horario: { inicio: '09:30', fin: '18:30', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-5', nombre: 'Rubén Mexía', especialidadId: 'esp-3', sucursalId: 'suc-3', horario: { inicio: '11:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-6', nombre: 'Miguel Ahumada', especialidadId: 'esp-3', sucursalId: 'suc-3', horario: { inicio: '08:00', fin: '16:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-7', nombre: 'Eliasib Pérez', especialidadId: 'esp-3', sucursalId: 'suc-3', horario: { inicio: '10:30', fin: '18:30', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-8', nombre: 'Alejandro Vargas', especialidadId: 'esp-4', sucursalId: 'suc-3', horario: { inicio: '08:00', fin: '16:30', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-9', nombre: 'Alexis Colleti', especialidadId: 'esp-4', sucursalId: 'suc-3', horario: { inicio: '09:00', fin: '17:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-10', nombre: 'Stephania Vélez', especialidadId: 'esp-8', sucursalId: 'suc-3', horario: { inicio: '09:00', fin: '17:00', intervaloMin: 45 }, capacidadEmpalmes: 2, activo: true },
+
   // Ciudad Juárez
-  { id: 'doc-13', nombre: 'Dr. Odontología Juárez', especialidadId: 'esp-3', sucursalId: 'suc-4', horario: { inicio: '09:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-14', nombre: 'Dr. Oftalmología Juárez', especialidadId: 'esp-4', sucursalId: 'suc-4', horario: { inicio: '08:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  
+  { id: 'doc-11', nombre: 'Edni González', especialidadId: 'esp-3', sucursalId: 'suc-4', horario: { inicio: '09:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-12', nombre: 'Iván Oros', especialidadId: 'esp-4', sucursalId: 'suc-4', horario: { inicio: '08:00', fin: '16:30', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-13', nombre: 'Iván Ornelas', especialidadId: 'esp-4', sucursalId: 'suc-4', horario: { inicio: '10:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-14', nombre: 'Dr. José Ricardo Espinoza Vargas', especialidadId: 'esp-4', sucursalId: 'suc-4', horario: { inicio: '07:30', fin: '15:30', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-15', nombre: 'Samseri Sandoval', especialidadId: 'esp-12', sucursalId: 'suc-4', horario: { inicio: '11:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-16', nombre: 'Missael Fuentes', especialidadId: 'esp-13', sucursalId: 'suc-4', horario: { inicio: '12:00', fin: '19:00', intervaloMin: 60 }, capacidadEmpalmes: 1, activo: true },
+  { id: 'doc-17', nombre: 'Swwlet Abigail Barrientos', especialidadId: 'esp-6', sucursalId: 'suc-4', horario: { inicio: '09:00', fin: '17:00', intervaloMin: 60 }, capacidadEmpalmes: 1, activo: true },
+  { id: 'doc-18', nombre: 'Claudia Córdova', especialidadId: 'esp-6', sucursalId: 'suc-4', horario: { inicio: '13:00', fin: '20:00', intervaloMin: 60 }, capacidadEmpalmes: 1, activo: true },
+
+  // Clínica Adventista Virtual
+  { id: 'doc-19', nombre: 'Dra. Tirsa Abisag Espinoza', especialidadId: 'esp-2', sucursalId: 'suc-7', horario: { inicio: '09:00', fin: '17:00', intervaloMin: 30 }, capacidadEmpalmes: 3, activo: true },
+  { id: 'doc-20', nombre: 'Yamila Arredondo', especialidadId: 'esp-2', sucursalId: 'suc-7', horario: { inicio: '12:00', fin: '20:00', intervaloMin: 30 }, capacidadEmpalmes: 3, activo: true },
+  { id: 'doc-21', nombre: 'Lidia Miranda', especialidadId: 'esp-7', sucursalId: 'suc-7', horario: { inicio: '10:00', fin: '18:00', intervaloMin: 60 }, capacidadEmpalmes: 2, activo: true },
+
   // Loreto Héroes
-  { id: 'doc-15', nombre: 'Dr. Odontología Loreto H', especialidadId: 'esp-3', sucursalId: 'suc-5', horario: { inicio: '09:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-16', nombre: 'Dr. Fisioterapia Loreto H', especialidadId: 'esp-5', sucursalId: 'suc-5', horario: { inicio: '08:00', fin: '17:00', intervaloMin: 30 }, capacidadEmpalmes: 3, activo: true },
-  
+  { id: 'doc-22', nombre: 'Gregorio Pérez', especialidadId: 'esp-3', sucursalId: 'suc-5', horario: { inicio: '09:00', fin: '18:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+  { id: 'doc-23', nombre: 'Gladys López', especialidadId: 'esp-3', sucursalId: 'suc-5', horario: { inicio: '10:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
+
   // Loreto Centro
-  { id: 'doc-17', nombre: 'Dr. Odontología Loreto C', especialidadId: 'esp-3', sucursalId: 'suc-6', horario: { inicio: '09:00', fin: '19:00', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
-  { id: 'doc-18', nombre: 'Dr. Fisioterapia Loreto C', especialidadId: 'esp-5', sucursalId: 'suc-6', horario: { inicio: '08:00', fin: '17:00', intervaloMin: 30 }, capacidadEmpalmes: 3, activo: true },
-  
-  // Clínica Virtual
-  { id: 'doc-19', nombre: 'Dr. Medicina Integral Virtual', especialidadId: 'esp-1', sucursalId: 'suc-7', horario: { inicio: '07:00', fin: '22:00', intervaloMin: 30 }, capacidadEmpalmes: 5, activo: true },
-  { id: 'doc-20', nombre: 'Psic. Psicología Virtual', especialidadId: 'esp-6', sucursalId: 'suc-7', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 60 }, capacidadEmpalmes: 4, activo: true },
-  { id: 'doc-21', nombre: 'Lic. Nutrición Virtual', especialidadId: 'esp-8', sucursalId: 'suc-7', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 45 }, capacidadEmpalmes: 3, activo: true },
-  
-  // Valle de la Trinidad (En Línea)
-  { id: 'doc-22', nombre: 'Psic. Psicología en Línea', especialidadId: 'esp-7', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 60 }, capacidadEmpalmes: 4, activo: true },
-  { id: 'doc-23', nombre: 'Dr. Medicina Integral en Línea', especialidadId: 'esp-2', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 30 }, capacidadEmpalmes: 5, activo: true },
-  { id: 'doc-24', nombre: 'Lic. Nutrición en Línea', especialidadId: 'esp-9', sucursalId: 'suc-8', horario: { inicio: '08:00', fin: '20:00', intervaloMin: 45 }, capacidadEmpalmes: 3, activo: true },
+  { id: 'doc-24', nombre: 'Nancy Grijalva', especialidadId: 'esp-3', sucursalId: 'suc-6', horario: { inicio: '09:30', fin: '18:30', intervaloMin: 30 }, capacidadEmpalmes: 2, activo: true },
 ];
 
 const servicios: CatalogoServicio[] = [
@@ -244,6 +240,9 @@ const servicios: CatalogoServicio[] = [
   // Óptica
   { id: 'srv-19', nombre: 'Graduación de Lentes', especialidadId: 'esp-12', precioBase: 300, duracionMinutos: 30 },
   { id: 'srv-20', nombre: 'Venta de Lentes', especialidadId: 'esp-12', precioBase: 1500, duracionMinutos: 20 },
+
+  // Consejería Pastoral
+  { id: 'srv-21', nombre: 'Consejería Pastoral', especialidadId: 'esp-13', precioBase: 300, duracionMinutos: 60 },
 ];
 
 const promociones: CatalogoPromocion[] = [
@@ -289,16 +288,17 @@ const promociones: CatalogoPromocion[] = [
   },
 ];
 
-// Mapeo de especialidades por sucursal (legacy IDs)
-const especialidadesPorSucursal: Record<string, string[]> = {
-  'suc-7': ['esp-1', 'esp-6', 'esp-8'], // Clínica Virtual: Medicina Integral, Psicología, Nutrición
-  'suc-5': ['esp-3', 'esp-5', 'esp-11'], // Loreto Héroes: Odontología, Fisioterapia, Laboratorio Dental
-  'suc-6': ['esp-3', 'esp-5', 'esp-11'], // Loreto Centro: Odontología, Fisioterapia, Laboratorio Dental
-  'suc-1': ['esp-1', 'esp-4', 'esp-3', 'esp-5', 'esp-10'], // Valle Trinidad: Medicina Integral, Oftalmología, Odontología, Fisioterapia, Lab Clínico
-  'suc-4': ['esp-3', 'esp-4', 'esp-12'], // Ciudad Juárez: Odontología, Oftalmología, Óptica
-  'suc-3': ['esp-1', 'esp-4', 'esp-3', 'esp-8'], // Ciudad Obregón: Medicina Integral, Oftalmología, Odontología, Nutrición
-  'suc-2': ['esp-1', 'esp-4', 'esp-3', 'esp-8'], // Guadalajara: Medicina Integral, Oftalmología, Odontología, Nutrición
-  'suc-8': ['esp-7', 'esp-2', 'esp-9'], // Valle de la Trinidad: Psicología en Línea, Medicina Integral en Línea, Nutrición en Línea
+const construirEspecialidadesPorSucursal = (lista: CatalogoDoctor[]) => {
+  const mapa: Record<string, string[]> = {};
+  lista.forEach((doc) => {
+    if (!mapa[doc.sucursalId]) {
+      mapa[doc.sucursalId] = [];
+    }
+    if (!mapa[doc.sucursalId].includes(doc.especialidadId)) {
+      mapa[doc.sucursalId].push(doc.especialidadId);
+    }
+  });
+  return mapa;
 };
 
 export class CatalogoController {
@@ -326,14 +326,24 @@ export class CatalogoController {
       'suc-4': 'Ciudad Juárez',
       'suc-5': 'Loreto Héroes',
       'suc-6': 'Loreto Centro',
-      'suc-7': 'Clínica Virtual Adventista',
+      'suc-7': 'Clínica Adventista Virtual',
       'suc-8': 'Valle de la Trinidad',
+    };
+    const legacyAlternates: Record<string, string[]> = {
+      'suc-7': ['Clínica Virtual Adventista'],
     };
 
     const dbIdByName = new Map(sucursalesDb.map((s) => [s.nombre, s.id]));
     const mapLegacyToDbId = (legacyId: string) => {
       const name = legacyToName[legacyId];
-      return name ? dbIdByName.get(name) : undefined;
+      const directId = name ? dbIdByName.get(name) : undefined;
+      if (directId) return directId;
+      const alternates = legacyAlternates[legacyId] || [];
+      for (const altName of alternates) {
+        const altId = dbIdByName.get(altName);
+        if (altId) return altId;
+      }
+      return undefined;
     };
 
     const doctoresMapped = doctores
@@ -344,13 +354,7 @@ export class CatalogoController {
       })
       .filter(Boolean) as CatalogoDoctor[];
 
-    const especialidadesPorSucursalDb: Record<string, string[]> = {};
-    Object.entries(especialidadesPorSucursal).forEach(([legacyId, ids]) => {
-      const dbId = mapLegacyToDbId(legacyId);
-      if (dbId) {
-        especialidadesPorSucursalDb[dbId] = ids;
-      }
-    });
+    const especialidadesPorSucursalDb = construirEspecialidadesPorSucursal(doctoresMapped);
 
     // Filtrar especialidades por sucursal si se proporciona
     let especialidadesFiltradas = especialidades;
@@ -382,36 +386,16 @@ export class CatalogoController {
     });
   }
 
-  async obtenerDisponibilidad(req: Request, res: Response): Promise<void> {
-    const { sucursalId, doctorId, fecha } = req.query;
-
-    // Generar horarios de ejemplo de 8:00 AM a 6:00 PM cada 30 minutos
-    const horarios = [];
-    for (let hora = 8; hora < 18; hora++) {
-      for (let minuto of [0, 30]) {
-        const horaStr = `${hora.toString().padStart(2, '0')}:${minuto.toString().padStart(2, '0')}`;
-        const ocupado = Math.random() > 0.7; // 30% ocupados aleatoriamente
-        
-        horarios.push({
-          hora: horaStr,
-          disponible: !ocupado,
-          doctor: doctorId || 'doc-1',
-        });
-      }
-    }
-
-    res.json({
-      success: true,
-      fecha,
-      sucursalId,
-      doctorId,
-      disponibilidad: horarios,
-    });
+  /**
+   * @deprecated La ruta GET /api/catalogo/disponibilidad delega a CitaController.obtenerDisponibilidad
+   * (lógica real de citas y bloqueos). Este método ya no se usa.
+   */
+  async obtenerDisponibilidad(_req: Request, _res: Response): Promise<void> {
+    // Delegado en src/api/routes/catalogo.ts a CitaController
   }
 
   async agendarCita(req: Request, res: Response): Promise<void> {
     const { 
-      pacienteId, 
       sucursalId, 
       especialidadId, 
       doctorId, 

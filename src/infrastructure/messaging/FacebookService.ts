@@ -73,11 +73,11 @@ export class FacebookService {
         messageId: response.data.message_id
       };
     } catch (error: unknown) {
-      console.error('❌ Error enviando mensaje Facebook:', error.response?.data || error.message);
-      return {
-        success: false,
-        error: error.response?.data?.error?.message || error.message
-      };
+      const errMsg = axios.isAxiosError(error)
+        ? (error.response?.data as { error?: { message?: string } })?.error?.message || error.message
+        : error instanceof Error ? error.message : 'Error desconocido';
+      console.error('❌ Error enviando mensaje Facebook:', errMsg);
+      return { success: false, error: errMsg };
     }
   }
 
@@ -125,11 +125,11 @@ export class FacebookService {
         messageId: response.data.message_id
       };
     } catch (error: unknown) {
-      console.error('❌ Error enviando mensaje con opciones:', error.response?.data || error.message);
-      return {
-        success: false,
-        error: error.response?.data?.error?.message || error.message
-      };
+      const errMsg = axios.isAxiosError(error)
+        ? (error.response?.data as { error?: { message?: string } })?.error?.message || error.message
+        : error instanceof Error ? error.message : 'Error desconocido';
+      console.error('❌ Error enviando mensaje con opciones:', errMsg);
+      return { success: false, error: errMsg };
     }
   }
 
@@ -198,10 +198,8 @@ export class FacebookService {
 
       return { success: true };
     } catch (error: unknown) {
-      return {
-        success: false,
-        error: error.message
-      };
+      const errMsg = error instanceof Error ? error.message : 'Error desconocido';
+      return { success: false, error: errMsg };
     }
   }
 
@@ -231,59 +229,74 @@ export class FacebookService {
 
       return { success: true };
     } catch (error: unknown) {
-      return {
-        success: false,
-        error: error.message
-      };
+      const errMsg = error instanceof Error ? error.message : 'Error desconocido';
+      return { success: false, error: errMsg };
     }
   }
 
   /**
-   * Procesa webhook entrante de Facebook
+   * Extrae todos los mensajes del payload (object: "page").
+   * Soporta: entry[].messaging y entry[].standby (mensajes fuera de ventana 24h).
+   * Incluye texto y adjuntos (imagen, audio, video, archivo).
+   */
+  extraerMensajes(payload: Record<string, unknown>): Array<{ senderId: string; texto: string; tipoMensaje?: 'texto' | 'imagen' | 'audio' | 'archivo' | 'video'; timestamp?: number }> {
+    const payloadAny = payload as {
+      object?: string;
+      entry?: Array<{
+        messaging?: Array<Record<string, unknown>>;
+        standby?: Array<Record<string, unknown>>;
+      }>;
+    };
+    if (payloadAny.object !== 'page') return [];
+    const entries = payloadAny.entry ?? [];
+    const mensajes: Array<{ senderId: string; texto: string; tipoMensaje?: 'texto' | 'imagen' | 'audio' | 'archivo' | 'video'; timestamp?: number }> = [];
+
+    const procesarEvento = (ev: Record<string, unknown>) => {
+      const msg = ev.message as { text?: string; is_echo?: boolean; attachments?: Array<{ type?: string }> } | undefined;
+      if (!msg || msg.is_echo) return;
+      const senderId = (ev.sender as { id?: string })?.id ?? '';
+      if (!senderId) return;
+
+      let texto = msg.text ?? '';
+      let tipoMensaje: 'texto' | 'imagen' | 'audio' | 'archivo' | 'video' = 'texto';
+
+      if (!texto && msg.attachments?.length) {
+        const tipo = (msg.attachments[0]?.type ?? 'file') as string;
+        if (tipo === 'image') { texto = '[Imagen]'; tipoMensaje = 'imagen'; }
+        else if (tipo === 'audio' || tipo === 'video') { texto = `[${tipo === 'audio' ? 'Audio' : 'Video'}]`; tipoMensaje = tipo === 'audio' ? 'audio' : 'video'; }
+        else { texto = '[Archivo]'; tipoMensaje = 'archivo'; }
+      }
+      if (!texto) return;
+      mensajes.push({ senderId, texto, tipoMensaje, timestamp: ev.timestamp as number });
+    };
+
+    for (const entry of entries) {
+      for (const ev of entry.messaging ?? []) procesarEvento(ev as Record<string, unknown>);
+      for (const ev of entry.standby ?? []) procesarEvento(ev as Record<string, unknown>);
+    }
+    return mensajes;
+  }
+
+  /**
+   * Procesa webhook entrante de Facebook Messenger (legacy, un solo evento)
+   * Estructura: { object: "page", entry: [{ id, time, messaging: [...] }] }
    */
   procesarWebhook(payload: Record<string, unknown>): {
     tipo: 'mensaje' | 'lectura' | 'entrega' | 'desconocido';
     datos: Record<string, unknown>;
   } {
-    const payloadAny = payload as any;
-    const entry = payloadAny.entry?.[0];
-    const messaging = entry?.messaging?.[0];
-
-    if (messaging?.message) {
-      return {
-        tipo: 'mensaje',
-        datos: {
-          senderId: messaging.sender.id,
-          recipientId: messaging.recipient.id,
-          texto: messaging.message.text || '',
-          timestamp: messaging.timestamp
-        }
-      };
+    const mensajes = this.extraerMensajes(payload);
+    if (mensajes.length > 0) {
+      return { tipo: 'mensaje', datos: mensajes[0] };
     }
-
-    if (messaging?.read) {
-      return {
-        tipo: 'lectura',
-        datos: {
-          senderId: messaging.sender.id,
-          watermark: messaging.read.watermark
-        }
-      };
-    }
-
-    if (messaging?.delivery) {
-      return {
-        tipo: 'entrega',
-        datos: {
-          messageIds: messaging.delivery.mids
-        }
-      };
-    }
-
-    return {
-      tipo: 'desconocido',
-      datos: payload
-    };
+    const payloadAny = payload as { object?: string; entry?: Array<{ messaging?: Array<Record<string, unknown>> }> };
+    const entries = payloadAny.entry ?? [];
+    const firstMessaging = entries[0]?.messaging?.[0] as Record<string, unknown> | undefined;
+    if (!firstMessaging) return { tipo: 'desconocido', datos: payload };
+    const senderId = (firstMessaging.sender as { id?: string })?.id;
+    if (firstMessaging.read) return { tipo: 'lectura', datos: { senderId } };
+    if (firstMessaging.delivery) return { tipo: 'entrega', datos: {} };
+    return { tipo: 'desconocido', datos: payload };
   }
 
   /**

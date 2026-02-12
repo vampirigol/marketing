@@ -9,14 +9,14 @@ export interface DoctorCapacidad {
 export async function obtenerCapacidadPorDoctor(fecha: Date, citas: Cita[]): Promise<Record<string, number>> {
   // Obtener IDs únicos de doctores para ese día
   const doctorIds = Array.from(new Set(
-    citas.map(c => c.doctorId || c.medicoAsignadoId).filter(Boolean)
+    citas.map(c => (c as Cita & { doctorId?: string }).doctorId || c.medicoAsignado).filter(Boolean)
   ));
   if (doctorIds.length === 0) return {};
 
   // Llama a la API de catálogo para todos los doctores (puedes optimizar esto según tu backend)
   // Aquí se asume un endpoint que retorna la capacidad para varios doctores
   const params = new URLSearchParams();
-  doctorIds.forEach(id => params.append('doctorIds', id));
+  doctorIds.forEach(id => { if (id) params.append('doctorIds', id); });
   const res = await fetch(`/api/catalogo/capacidad?${params.toString()}`);
   if (!res.ok) return {};
   const data = await res.json();

@@ -16,6 +16,7 @@ declare global {
         username: string;
         rol: Rol;
         sucursalId?: string;
+        nombreCompleto?: string;
       };
     }
   }

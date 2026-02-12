@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import { MatrixController } from '../controllers/MatrixController';
+import { autenticar } from '../middleware/auth';
+import { requiereRol } from '../middleware/authorization';
 
 const router = Router();
 const controller = new MatrixController();
+const accesoMatrix = requiereRol('Admin', 'Supervisor', 'Recepcion', 'Medico', 'Contact_Center');
+const accesoOperacionMatrix = requiereRol('Admin', 'Supervisor', 'Contact_Center', 'Medico');
 
 /**
  * @route GET /api/matrix/conversaciones
@@ -12,14 +16,18 @@ const controller = new MatrixController();
  * @query busqueda - Buscar por nombre o mensaje
  * @access Privado (Keila, Admin)
  */
-router.get('/conversaciones', (req, res) => controller.obtenerConversaciones(req, res));
+router.get('/conversaciones', autenticar, accesoMatrix, (req, res) =>
+  controller.obtenerConversaciones(req, res)
+);
 
 /**
  * @route GET /api/matrix/conversaciones/:id
  * @desc Obtiene una conversación específica con todos sus mensajes
  * @access Privado (Keila, Admin)
  */
-router.get('/conversaciones/:id', (req, res) => controller.obtenerConversacion(req, res));
+router.get('/conversaciones/:id', autenticar, accesoMatrix, (req, res) =>
+  controller.obtenerConversacion(req, res)
+);
 
 /**
  * @route POST /api/matrix/conversaciones/:id/mensajes
@@ -27,14 +35,18 @@ router.get('/conversaciones/:id', (req, res) => controller.obtenerConversacion(r
  * @body { contenido, tipo }
  * @access Privado (Keila, Admin)
  */
-router.post('/conversaciones/:id/mensajes', (req, res) => controller.enviarMensaje(req, res));
+router.post('/conversaciones/:id/mensajes', autenticar, accesoOperacionMatrix, (req, res) =>
+  controller.enviarMensaje(req, res)
+);
 
 /**
  * @route PUT /api/matrix/conversaciones/:id/leer
  * @desc Marca conversación como leída
  * @access Privado (Keila, Admin)
  */
-router.put('/conversaciones/:id/leer', (req, res) => controller.marcarComoLeida(req, res));
+router.put('/conversaciones/:id/leer', autenticar, accesoOperacionMatrix, (req, res) =>
+  controller.marcarComoLeida(req, res)
+);
 
 /**
  * @route PUT /api/matrix/conversaciones/:id/estado
@@ -42,7 +54,9 @@ router.put('/conversaciones/:id/leer', (req, res) => controller.marcarComoLeida(
  * @body { estado }
  * @access Privado (Keila, Admin)
  */
-router.put('/conversaciones/:id/estado', (req, res) => controller.cambiarEstado(req, res));
+router.put('/conversaciones/:id/estado', autenticar, requiereRol('Admin', 'Supervisor', 'Contact_Center'), (req, res) =>
+  controller.cambiarEstado(req, res)
+);
 
 /**
  * @route POST /api/matrix/conversaciones/:id/etiquetas
@@ -50,14 +64,16 @@ router.put('/conversaciones/:id/estado', (req, res) => controller.cambiarEstado(
  * @body { etiqueta }
  * @access Privado (Keila, Admin)
  */
-router.post('/conversaciones/:id/etiquetas', (req, res) => controller.agregarEtiqueta(req, res));
+router.post('/conversaciones/:id/etiquetas', autenticar, requiereRol('Admin', 'Supervisor', 'Contact_Center'), (req, res) =>
+  controller.agregarEtiqueta(req, res)
+);
 
 /**
  * @route DELETE /api/matrix/conversaciones/:id/etiquetas/:etiqueta
  * @desc Elimina una etiqueta de la conversación
  * @access Privado (Keila, Admin)
  */
-router.delete('/conversaciones/:id/etiquetas/:etiqueta', (req, res) => 
+router.delete('/conversaciones/:id/etiquetas/:etiqueta', autenticar, requiereRol('Admin', 'Supervisor', 'Contact_Center'), (req, res) =>
   controller.eliminarEtiqueta(req, res)
 );
 
@@ -67,14 +83,57 @@ router.delete('/conversaciones/:id/etiquetas/:etiqueta', (req, res) =>
  * @body { pacienteId }
  * @access Privado (Keila, Admin)
  */
-router.put('/conversaciones/:id/paciente', (req, res) => controller.vincularPaciente(req, res));
+router.put('/conversaciones/:id/paciente', autenticar, requiereRol('Admin', 'Supervisor', 'Contact_Center'), (req, res) =>
+  controller.vincularPaciente(req, res)
+);
+
+/**
+ * @route PUT /api/matrix/conversaciones/:id/prioridad
+ * @desc Cambia la prioridad de una conversación
+ * @body { prioridad }
+ * @access Privado (Keila, Admin, Medico)
+ */
+router.put('/conversaciones/:id/prioridad', autenticar, accesoOperacionMatrix, (req, res) =>
+  controller.cambiarPrioridad(req, res)
+);
+
+/**
+ * @route PUT /api/matrix/conversaciones/:id/asignar
+ * @desc Asigna o escala conversación a otro usuario
+ * @body { usuarioId }
+ * @access Privado (Keila, Admin, Medico)
+ */
+router.put('/conversaciones/:id/asignar', autenticar, accesoOperacionMatrix, (req, res) =>
+  controller.asignarConversacion(req, res)
+);
+
+/**
+ * @route GET /api/matrix/plantillas
+ * @desc Obtiene plantillas de respuestas rápidas
+ * @access Privado (Keila, Admin, Medico)
+ */
+router.get('/plantillas', autenticar, accesoOperacionMatrix, (req, res) =>
+  controller.obtenerPlantillas(req, res)
+);
+
+/**
+ * @route POST /api/matrix/plantillas
+ * @desc Crea una nueva plantilla de respuesta
+ * @body { nombre, contenido, etiquetas, esGlobal }
+ * @access Privado (Keila, Admin, Medico)
+ */
+router.post('/plantillas', autenticar, accesoOperacionMatrix, (req, res) =>
+  controller.crearPlantilla(req, res)
+);
 
 /**
  * @route GET /api/matrix/estadisticas
  * @desc Obtiene estadísticas del Contact Center
  * @access Privado (Keila, Admin, Gerencia)
  */
-router.get('/estadisticas', (req, res) => controller.obtenerEstadisticas(req, res));
+router.get('/estadisticas', autenticar, requiereRol('Admin', 'Supervisor', 'Contact_Center'), (req, res) =>
+  controller.obtenerEstadisticas(req, res)
+);
 
 /**
  * @route POST /api/matrix/webhooks/whatsapp
@@ -102,5 +161,14 @@ router.get('/webhooks/facebook', (req, res) => controller.webhookFacebook(req, r
  */
 router.post('/webhooks/instagram', (req, res) => controller.webhookInstagram(req, res));
 router.get('/webhooks/instagram', (req, res) => controller.webhookInstagram(req, res));
+ 
+/**
+ * @route GET /api/matrix/sync-meta
+ * @desc Sincroniza conversaciones históricas desde Meta (Facebook/Instagram)
+ * @access Privado (Keila, Admin)
+ */
+router.get('/sync-meta', autenticar, accesoMatrix, (req, res) =>
+  controller.sincronizarConversacionesMeta(req, res)
+);
 
 export default router;

@@ -187,7 +187,8 @@ export class ReminderScheduler {
             recordatorio.ejecutado = true;
             ejecutados++;
           } catch (error: unknown) {
-            console.error(`❌ Error ejecutando recordatorio ${recordatorio.tipo} para cita ${citaId}:`, error.message);
+            const errMsg = error instanceof Error ? error.message : 'Error desconocido';
+            console.error(`❌ Error ejecutando recordatorio ${recordatorio.tipo} para cita ${citaId}:`, errMsg);
             errores++;
           }
         }

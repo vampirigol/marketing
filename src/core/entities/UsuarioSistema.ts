@@ -29,6 +29,7 @@ export interface UsuarioSistema {
   // Información personal
   nombreCompleto: string;
   telefono?: string;
+  fotoUrl?: string;
   
   // Rol y permisos
   rol: Rol;
@@ -58,6 +59,7 @@ export class UsuarioSistemaEntity implements UsuarioSistema {
   email: string;
   nombreCompleto: string;
   telefono?: string;
+  fotoUrl?: string;
   rol: Rol;
   permisos: Permiso[];
   sucursalId?: string;
@@ -75,6 +77,7 @@ export class UsuarioSistemaEntity implements UsuarioSistema {
     this.email = data.email;
     this.nombreCompleto = data.nombreCompleto;
     this.telefono = data.telefono;
+    this.fotoUrl = data.fotoUrl;
     this.rol = data.rol;
     this.permisos = data.permisos;
     this.sucursalId = data.sucursalId;

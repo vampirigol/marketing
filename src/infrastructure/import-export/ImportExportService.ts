@@ -5,7 +5,7 @@
 
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { Paciente } from '../core/entities/Paciente';
+import { Paciente } from '../../core/entities/Paciente';
 
 export interface DatosExportacion {
   nombreArchivo: string;
@@ -190,21 +190,29 @@ export class ImportExportService {
         }
 
         // Transformar a estructura Paciente
-        const paciente: Partial<Paciente> = {
+        const gen = String(fila.genero || '').toLowerCase();
+        const sexo: 'M' | 'F' | 'Otro' = gen === 'm' || gen === 'masculino' ? 'M' : gen === 'f' || gen === 'femenino' ? 'F' : 'Otro';
+        const origenVal = String(fila.origen || 'Referido').trim();
+        const origenLead: Paciente['origenLead'] = ['WhatsApp','Facebook','Instagram','Llamada','Presencial','Referido'].includes(origenVal) ? origenVal as Paciente['origenLead'] : 'Referido';
+
+        const paciente: Partial<Paciente> & { noAfiliacion: string; tipoAfiliacion: Paciente['tipoAfiliacion']; ciudad: string; estado: string; fechaRegistro: Date; ultimaActualizacion: Date; activo: boolean } = {
           id: `pac_imp_${Date.now()}_${index}`,
           nombreCompleto: String(fila.nombreCompleto).trim(),
           telefono: String(fila.telefono).trim(),
           email: fila.email ? String(fila.email).trim() : undefined,
-          genero: fila.genero || undefined,
-          fechaNacimiento: fila.fechaNacimiento ? new Date(fila.fechaNacimiento) : undefined,
-          direccion: fila.direccion || undefined,
-          ciudad: fila.ciudad || undefined,
-          estado: fila.estado || undefined,
-          origen: fila.origen || 'Importación',
-          notas: fila.notas || undefined,
-          sucursalId: fila.sucursalId || undefined,
+          sexo,
+          fechaNacimiento: fila.fechaNacimiento ? new Date(fila.fechaNacimiento) : new Date('2000-01-01'),
+          edad: 0,
+          noAfiliacion: fila.noAfiliacion ? String(fila.noAfiliacion) : `IMP-${Date.now()}-${index}`,
+          tipoAfiliacion: 'Particular',
+          calle: fila.direccion ? String(fila.direccion) : undefined,
+          ciudad: fila.ciudad ? String(fila.ciudad) : 'Sin especificar',
+          estado: fila.estado ? String(fila.estado) : 'Sin especificar',
+          origenLead,
+          observaciones: fila.notas ? String(fila.notas) : undefined,
           fechaRegistro: new Date(),
-          ultimaActualizacion: new Date()
+          ultimaActualizacion: new Date(),
+          activo: true
         };
 
         resultado.datos.push(paciente);

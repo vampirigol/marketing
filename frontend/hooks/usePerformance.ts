@@ -18,12 +18,12 @@ export function useRenderMetrics(componentName: string, enabled: boolean = false
   const renderTimes = useRef<number[]>([]);
   const startTime = useRef(0);
 
-  if (!enabled) return null;
-
-  // Marcar inicio del render
-  startTime.current = performance.now();
+  if (enabled) {
+    startTime.current = performance.now();
+  }
 
   useEffect(() => {
+    if (!enabled) return;
     // Calcular tiempo del render
     const endTime = performance.now();
     const renderTime = endTime - startTime.current;
@@ -79,15 +79,14 @@ export function clearPerformanceMetrics() {
  * Hook para detectar re-renders innecesarios
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export function useWhyDidYouUpdate(name: string, props: Record<string, any>, enabled: boolean = false) {
-  const previousProps = useRef<Record<string, any>>();
-
-  if (!enabled) return;
+export function useWhyDidYouUpdate(name: string, props: Record<string, unknown>, enabled: boolean = false) {
+  const previousProps = useRef<Record<string, unknown>>();
 
   useEffect(() => {
+    if (!enabled) return;
     if (previousProps.current) {
       const allKeys = Object.keys({ ...previousProps.current, ...props });
-      const changedProps: Record<string, { from: any; to: any }> = {};
+      const changedProps: Record<string, { from: unknown; to: unknown }> = {};
 
       allKeys.forEach((key) => {
         if (previousProps.current && previousProps.current[key] !== props[key]) {

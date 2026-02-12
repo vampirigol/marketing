@@ -17,6 +17,8 @@ import { ReminderScheduler } from './ReminderScheduler';
 import { TimeZoneScheduler } from './TimeZoneScheduler';
 import { ExpiracionOpenTicketsScheduler } from './ExpiracionOpenTicketsScheduler';
 import { AutomationScheduler } from './AutomationScheduler';
+import { CalendarioRecordatorioScheduler } from './CalendarioRecordatorioScheduler';
+import { CitasRecordatorioScheduler } from './CitasRecordatorioScheduler';
 import { CitaRepository } from '../database/repositories/CitaRepository';
 import { InasistenciaRepository } from '../database/repositories/InasistenciaRepository';
 import { SucursalRepository } from '../database/repositories/SucursalRepository';
@@ -78,6 +80,8 @@ export class SchedulerManager {
   private timeZoneScheduler?: TimeZoneScheduler;
   private expiracionTicketsScheduler?: ExpiracionOpenTicketsScheduler;
   private automationScheduler?: AutomationScheduler;
+  private calendarioRecordatorioScheduler?: CalendarioRecordatorioScheduler;
+  private citasRecordatorioScheduler?: CitasRecordatorioScheduler;
 
   private estadoSchedulers: Map<string, SchedulerStatus>;
 
@@ -154,7 +158,14 @@ export class SchedulerManager {
       this.automationScheduler = new AutomationScheduler(automationEngine, repo, '*/1 * * * *');
       this.registrarScheduler('Automation');
 
-      
+      // 8. Calendario Recordatorio - Notificaciones para eventos con recordatorio
+      this.calendarioRecordatorioScheduler = new CalendarioRecordatorioScheduler();
+      this.registrarScheduler('CalendarioRecordatorio');
+
+      // 9. Citas Recordatorio - Recordatorios PERSISTENTES de citas (BD)
+      this.citasRecordatorioScheduler = new CitasRecordatorioScheduler();
+      this.registrarScheduler('CitasRecordatorio');
+
       console.log('✅ Todos los schedulers inicializados correctamente\n');
 
     } catch (error) {
@@ -203,6 +214,16 @@ export class SchedulerManager {
       if (this.automationScheduler) {
         this.automationScheduler.start();
         this.actualizarEstado('Automation', 'running');
+      }
+
+      if (this.calendarioRecordatorioScheduler) {
+        this.calendarioRecordatorioScheduler.start();
+        this.actualizarEstado('CalendarioRecordatorio', 'running');
+      }
+
+      if (this.citasRecordatorioScheduler) {
+        this.citasRecordatorioScheduler.start();
+        this.actualizarEstado('CitasRecordatorio', 'running');
       }
 
       console.log('\n╔═══════════════════════════════════════════════════════╗');
@@ -254,6 +275,16 @@ export class SchedulerManager {
     if (this.automationScheduler) {
       this.automationScheduler.stop();
       this.actualizarEstado('Automation', 'stopped');
+    }
+
+    if (this.calendarioRecordatorioScheduler) {
+      this.calendarioRecordatorioScheduler.stop();
+      this.actualizarEstado('CalendarioRecordatorio', 'stopped');
+    }
+
+    if (this.citasRecordatorioScheduler) {
+      this.citasRecordatorioScheduler.stop();
+      this.actualizarEstado('CitasRecordatorio', 'stopped');
     }
 
     console.log('✅ Todos los schedulers detenidos\n');

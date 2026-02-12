@@ -46,7 +46,7 @@ export class PacienteController {
       console.error('Error al crear paciente:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al crear el paciente',
+        message: error instanceof Error ? error.message : 'Error al crear el paciente',
       });
     }
   }
@@ -72,7 +72,7 @@ export class PacienteController {
       console.error('Error al obtener paciente:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al obtener el paciente',
+        message: error instanceof Error ? error.message : 'Error al obtener el paciente',
       });
     }
   }
@@ -100,7 +100,7 @@ export class PacienteController {
       console.error('Error al buscar pacientes:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al buscar pacientes',
+        message: error instanceof Error ? error.message : 'Error al buscar pacientes',
       });
     }
   }
@@ -123,7 +123,7 @@ export class PacienteController {
       console.error('Error al listar pacientes:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al listar pacientes',
+        message: error instanceof Error ? error.message : 'Error al listar pacientes',
       });
     }
   }
@@ -154,7 +154,7 @@ export class PacienteController {
       console.error('Error al actualizar paciente:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al actualizar el paciente',
+        message: error instanceof Error ? error.message : 'Error al actualizar el paciente',
       });
     }
   }
@@ -180,7 +180,24 @@ export class PacienteController {
       console.error('Error al obtener paciente por No_Afiliacion:', error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Error al obtener el paciente',
+        message: error instanceof Error ? error.message : 'Error al obtener el paciente',
+      });
+    }
+  }
+
+  /** Genera el siguiente número de afiliación único (RCA-YYYY-NNNNN) sin duplicados en BD. */
+  async siguienteNoAfiliacion(req: Request, res: Response): Promise<void> {
+    try {
+      const noAfiliacion = await this.repository.obtenerSiguienteNoAfiliacion();
+      res.json({
+        success: true,
+        noAfiliacion,
+      });
+    } catch (error: unknown) {
+      console.error('Error al generar siguiente No. Afiliación:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Error al generar número de afiliación',
       });
     }
   }

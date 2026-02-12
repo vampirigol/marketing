@@ -1,6 +1,5 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import logoClinicas from '../../src/Logos Clínicas/Logos Red de Clínicas Adventistas/cruz clinica sin fondo.png';
 
 const modules = [
   {
@@ -51,6 +50,14 @@ const modules = [
     tint: 'border-pink-200/70 bg-pink-50/60',
     gradient: 'from-pink-500 to-rose-500',
   },
+  {
+    href: '/doctores',
+    title: 'Doctores',
+    description: 'Acceso a la versión móvil web',
+    icon: '🩺',
+    tint: 'border-cyan-200/70 bg-cyan-50/60',
+    gradient: 'from-cyan-500 to-sky-500',
+  },
 ];
 
 export default function Home() {
@@ -69,9 +76,11 @@ export default function Home() {
         <div className="mt-8 flex flex-col items-center gap-6 lg:flex-row lg:gap-10">
           <div className="flex h-28 w-28 items-center justify-center rounded-3xl border border-slate-200/70 bg-white/90 p-3 shadow-xl backdrop-blur md:h-32 md:w-32">
             <Image
-              src={logoClinicas}
+              src="/logo-clinicas.png"
               alt="Clínicas Adventistas"
               className="h-full w-full object-contain"
+              width={128}
+              height={128}
               priority
             />
           </div>

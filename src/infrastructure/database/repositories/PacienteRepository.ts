@@ -7,6 +7,8 @@ export interface PacienteRepository {
   obtenerPorId(id: string): Promise<PacienteEntity | null>;
   obtenerPorTelefono(telefono: string): Promise<PacienteEntity | null>;
   obtenerPorNoAfiliacion(noAfiliacion: string): Promise<PacienteEntity | null>;
+  /** Genera el siguiente número de afiliación único (formato RCA-YYYY-NNNNN) sin duplicados. */
+  obtenerSiguienteNoAfiliacion(): Promise<string>;
   actualizar(id: string, paciente: Partial<Paciente>): Promise<PacienteEntity>;
   buscar(query: string): Promise<PacienteEntity[]>;
   listar(limit?: number, offset?: number): Promise<PacienteEntity[]>;
@@ -87,6 +89,27 @@ export class PacienteRepositoryPostgres implements PacienteRepository {
     }
 
     return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerSiguienteNoAfiliacion(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `RCA-${year}-`;
+    const query = `
+      SELECT no_afiliacion FROM pacientes
+      WHERE no_afiliacion LIKE $1 || '%'
+      ORDER BY no_afiliacion DESC
+      LIMIT 1
+    `;
+    const result = await this.pool.query(query, [prefix]);
+    let nextNum = 1;
+    if (result.rows.length > 0) {
+      const last = result.rows[0].no_afiliacion as string;
+      const match = last.match(new RegExp(`^${prefix.replace(/-/g, '\\-')}(\\d+)$`));
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    }
+    return `${prefix}${String(nextNum).padStart(5, '0')}`;
   }
 
   async actualizar(id: string, paciente: Partial<Paciente>): Promise<PacienteEntity> {
@@ -224,6 +247,22 @@ export class InMemoryPacienteRepository implements PacienteRepository {
     return null;
   }
 
+  async obtenerSiguienteNoAfiliacion(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `RCA-${year}-`;
+    let maxNum = 0;
+    for (const p of this.pacientes.values()) {
+      if (p.noAfiliacion.startsWith(prefix)) {
+        const match = p.noAfiliacion.match(/^RCA-\d{4}-(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      }
+    }
+    return `${prefix}${String(maxNum + 1).padStart(5, '0')}`;
+  }
+
   async actualizar(id: string, updates: Partial<Paciente>): Promise<PacienteEntity> {
     const paciente = this.pacientes.get(id);
     if (!paciente) {
@@ -266,5 +305,10 @@ export class InMemoryPacienteRepository implements PacienteRepository {
       .sort((a, b) => b.fechaRegistro.getTime() - a.fechaRegistro.getTime());
 
     return activos.slice(offset, offset + limit);
+  }
+
+  /** Alias para compatibilidad con IPacienteRepository/segmentación */
+  async obtenerTodos(): Promise<PacienteEntity[]> {
+    return this.listar(10000, 0);
   }
 }

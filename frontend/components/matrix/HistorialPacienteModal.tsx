@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Cita } from '@/types';
+import { citasService } from '@/lib/citas.service';
 
 interface HistorialPacienteModalProps {
   isOpen: boolean;
@@ -47,91 +48,36 @@ export function HistorialPacienteModal({
   const cargarHistorial = async () => {
     setCargando(true);
     try {
-      // TODO: Implementar llamada a API real
-      // const response = await fetch(`http://localhost:3001/api/citas/paciente/${pacienteId}`);
-      // const data = await response.json();
-      
-      // Datos de ejemplo
-      const citasEjemplo: Cita[] = [
-        {
-          id: '1',
-          pacienteId,
-          pacienteNombre,
-          pacienteTelefono: '+52 555-1234-5678',
-          pacienteEmail: 'maria.gonzalez@email.com',
-          sucursalId: 'suc1',
-          sucursalNombre: 'Sucursal Centro',
-          fechaCita: new Date('2026-01-15'),
-          horaCita: '09:00',
-          duracionMinutos: 30,
-          tipoConsulta: 'Consulta General',
-          especialidad: 'Medicina General',
-          medicoAsignado: 'Dr. López',
-          estado: 'Finalizada',
-          esPromocion: true,
-          costoConsulta: 200,
-          montoAbonado: 100,
-          saldoPendiente: 0,
-          metodoPago: 'Efectivo',
-          notas: 'Consulta de seguimiento',
-          reagendaciones: 0,
-          fechaCreacion: new Date('2026-01-10'),
-          ultimaActualizacion: new Date('2026-01-15')
-        },
-        {
-          id: '2',
-          pacienteId,
-          pacienteNombre,
-          pacienteTelefono: '+52 555-1234-5678',
-          pacienteEmail: 'maria.gonzalez@email.com',
-          sucursalId: 'suc1',
-          sucursalNombre: 'Sucursal Centro',
-          fechaCita: new Date('2025-12-10'),
-          horaCita: '10:00',
-          duracionMinutos: 30,
-          tipoConsulta: 'Consulta General',
-          especialidad: 'Medicina General',
-          medicoAsignado: 'Dr. López',
-          estado: 'Finalizada',
-          esPromocion: false,
-          costoConsulta: 250,
-          montoAbonado: 250,
-          saldoPendiente: 0,
-          metodoPago: 'Tarjeta',
-          notas: 'Primera consulta',
-          reagendaciones: 0,
-          fechaCreacion: new Date('2025-12-05'),
-          ultimaActualizacion: new Date('2025-12-10')
-        },
-        {
-          id: '3',
-          pacienteId,
-          pacienteNombre,
-          pacienteTelefono: '+52 555-1234-5678',
-          pacienteEmail: 'maria.gonzalez@email.com',
-          sucursalId: 'suc1',
-          sucursalNombre: 'Sucursal Centro',
-          fechaCita: new Date('2026-02-20'),
-          horaCita: '14:00',
-          duracionMinutos: 60,
-          tipoConsulta: 'Limpieza Dental',
-          especialidad: 'Odontología',
-          medicoAsignado: 'Dra. Martínez',
-          estado: 'Agendada',
-          esPromocion: false,
-          costoConsulta: 400,
-          montoAbonado: 0,
-          saldoPendiente: 400,
-          notas: 'Limpieza programada',
-          reagendaciones: 0,
-          fechaCreacion: new Date('2026-02-01'),
-          ultimaActualizacion: new Date('2026-02-01')
-        }
-      ];
-      
-      setCitas(citasEjemplo);
+      const raw = await citasService.obtenerPorPaciente(pacienteId);
+      const citasMapeadas: Cita[] = (raw || []).map((c: Record<string, unknown>) => ({
+        id: String(c.id ?? ''),
+        pacienteId,
+        pacienteNombre,
+        pacienteTelefono: c.pacienteTelefono as string | undefined,
+        pacienteEmail: c.pacienteEmail as string | undefined,
+        sucursalId: String(c.sucursalId ?? ''),
+        sucursalNombre: c.sucursalNombre as string | undefined,
+        fechaCita: c.fechaCita ? new Date(c.fechaCita as string) : new Date(),
+        horaCita: String(c.horaCita ?? ''),
+        duracionMinutos: Number(c.duracionMinutos) ?? 30,
+        tipoConsulta: String(c.tipoConsulta ?? c.especialidad ?? 'Consulta'),
+        especialidad: String(c.especialidad ?? ''),
+        medicoAsignado: c.medicoAsignado as string | undefined,
+        estado: (c.estado as Cita['estado']) ?? 'Agendada',
+        esPromocion: Boolean(c.esPromocion),
+        costoConsulta: Number(c.costoConsulta) ?? 0,
+        montoAbonado: Number(c.montoAbonado) ?? 0,
+        saldoPendiente: Number(c.saldoPendiente) ?? 0,
+        metodoPago: c.metodoPago as string | undefined,
+        notas: c.notas as string | undefined,
+        reagendaciones: Number(c.reagendaciones) ?? 0,
+        fechaCreacion: c.fechaCreacion ? new Date(c.fechaCreacion as string) : new Date(),
+        ultimaActualizacion: c.ultimaActualizacion ? new Date(c.ultimaActualizacion as string) : new Date(),
+      }));
+      setCitas(citasMapeadas);
     } catch (error) {
       console.error('Error cargando historial:', error);
+      setCitas([]);
     } finally {
       setCargando(false);
     }
@@ -160,13 +106,18 @@ export function HistorialPacienteModal({
   };
 
   const getEstadoBadge = (estado: Cita['estado']) => {
-    const configs = {
+    const configs: Record<string, { color: string; icon: typeof Clock; label: string }> = {
       'Agendada': { color: 'bg-blue-100 text-blue-700', icon: Clock, label: 'Agendada' },
+      'Pendiente_Confirmacion': { color: 'bg-amber-100 text-amber-700', icon: Clock, label: 'Pendiente' },
       'Confirmada': { color: 'bg-green-100 text-green-700', icon: CheckCircle2, label: 'Confirmada' },
+      'Reagendada': { color: 'bg-indigo-100 text-indigo-700', icon: Clock, label: 'Reagendada' },
       'Llegó': { color: 'bg-purple-100 text-purple-700', icon: User, label: 'Llegó' },
       'En_Atencion': { color: 'bg-orange-100 text-orange-700', icon: AlertCircle, label: 'En Atención' },
+      'En_Espera': { color: 'bg-yellow-100 text-yellow-700', icon: Clock, label: 'En Espera' },
       'Finalizada': { color: 'bg-gray-100 text-gray-700', icon: CheckCircle2, label: 'Finalizada' },
       'Cancelada': { color: 'bg-red-100 text-red-700', icon: XCircle, label: 'Cancelada' },
+      'Inasistencia': { color: 'bg-red-100 text-red-700', icon: AlertCircle, label: 'Inasistencia' },
+      'Perdido': { color: 'bg-red-100 text-red-700', icon: XCircle, label: 'Perdido' },
       'No_Asistio': { color: 'bg-red-100 text-red-700', icon: AlertCircle, label: 'No Asistió' }
     };
     return configs[estado] || configs['Agendada'];

@@ -18,6 +18,8 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   open: 'Abierto',
   'in-progress': 'En Progreso',
   'open-deal': 'Negociación',
+  'agendados-mobile': 'Agendados Mobile',
+  'citas-locales': 'Citas Locales',
 };
 
 export function ConfirmMoveModal({

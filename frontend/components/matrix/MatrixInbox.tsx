@@ -1,12 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, MessageSquare } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import { Search, MessageSquare, Plus, User, Moon } from 'lucide-react';
 import { Conversacion, CanalType, ConversacionEstado } from '@/types/matrix';
 import { Badge } from '@/components/ui/Badge';
-import { Input } from '@/components/ui/Input';
+import {
+  RedesSocialesModal,
+  CANALES_KEILA,
+  getCanalesConectadosDefault,
+  guardarCanalesConectados,
+} from './RedesSocialesModal';
+import { api } from '@/lib/api';
 
-// Colores y gradientes para avatares variados
+// Avatar por defecto cuando no hay foto de perfil
 const AVATAR_STYLES = [
   { from: 'from-blue-400', to: 'to-blue-600', emoji: '👤' },
   { from: 'from-purple-400', to: 'to-purple-600', emoji: '👨‍⚕️' },
@@ -23,26 +30,66 @@ const getAvatarStyle = (id: string) => {
   return AVATAR_STYLES[hash % AVATAR_STYLES.length];
 };
 
+type FiltroCanalType = CanalType | 'google-ads' | null;
+
 interface MatrixInboxProps {
   conversaciones: Conversacion[];
   conversacionActiva?: string;
   onSelectConversacion: (id: string) => void;
+  /** Búsqueda desde la barra superior (opcional) */
+  searchValue?: string;
+  darkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
-export function MatrixInbox({ 
-  conversaciones, 
+export function MatrixInbox({
+  conversaciones,
   conversacionActiva,
-  onSelectConversacion 
+  onSelectConversacion,
+  searchValue = '',
+  darkMode = false,
+  onToggleDarkMode,
 }: MatrixInboxProps) {
-  const [busqueda, setBusqueda] = useState('');
+  const [busquedaLocal, setBusquedaLocal] = useState('');
+  const busqueda = typeof searchValue === 'string' && searchValue.trim() !== '' ? searchValue : busquedaLocal;
   const [filtroEstado, setFiltroEstado] = useState<ConversacionEstado | 'todas'>('activa');
+  const [filtroCanal, setFiltroCanal] = useState<FiltroCanalType>(null);
+  const [canalesConectados, setCanalesConectados] = useState<Record<string, boolean>>(getCanalesConectadosDefault);
+  const [modalRedesOpen, setModalRedesOpen] = useState(false);
 
-  // Filtrar conversaciones
-  const conversacionesFiltradas = conversaciones.filter(conv => {
-    const matchBusqueda = conv.nombreContacto.toLowerCase().includes(busqueda.toLowerCase()) ||
-                          conv.ultimoMensaje.toLowerCase().includes(busqueda.toLowerCase());
+  // Sincronizar canales conectados: si backend tiene tokens, mostrar FB/IG en bandeja
+  useEffect(() => {
+    const base = getCanalesConectadosDefault();
+    api
+      .get<{ facebook?: boolean; instagram?: boolean }>('/meta-config/canales-conectados')
+      .then((res) => {
+        const { facebook, instagram } = res.data || {};
+        setCanalesConectados((prev) => ({
+          ...prev,
+          ...base,
+          facebook: facebook === true || prev.facebook !== false,
+          instagram: instagram === true || prev.instagram !== false,
+        }));
+      })
+      .catch(() => setCanalesConectados(base));
+  }, []);
+
+  const handleCambiarCanalConectado = (canal: string, conectado: boolean) => {
+    const next = { ...canalesConectados, [canal]: conectado };
+    setCanalesConectados(next);
+    guardarCanalesConectados(next);
+  };
+
+  // Solo conversaciones de canales conectados; luego filtro por canal seleccionado y búsqueda/estado
+  const conversacionesFiltradas = conversaciones.filter((conv) => {
+    const canalConectado = canalesConectados[conv.canal] !== false;
+    const matchCanal = filtroCanal === null || conv.canal === filtroCanal;
+    const matchBusqueda =
+      !busqueda.trim() ||
+      conv.nombreContacto.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (conv.ultimoMensaje || '').toLowerCase().includes(busqueda.toLowerCase());
     const matchEstado = filtroEstado === 'todas' || conv.estado === filtroEstado;
-    return matchBusqueda && matchEstado;
+    return canalConectado && matchCanal && matchBusqueda && matchEstado;
   });
 
   // Agrupar por estado
@@ -50,45 +97,26 @@ export function MatrixInbox({
   const pendientes = conversacionesFiltradas.filter(c => c.estado === 'pendiente');
   const cerradas = conversacionesFiltradas.filter(c => c.estado === 'cerrada');
 
-  const listasInteligentes = [
-    {
-      title: 'Inasistencia',
-      count: conversacionesFiltradas.filter(c => c.etiquetas.includes('Inasistencia')).length,
-      tone: 'text-rose-700 bg-rose-50 border-rose-200',
-    },
-    {
-      title: 'Reagendar',
-      count: conversacionesFiltradas.filter(c => c.etiquetas.includes('Reagendar')).length,
-      tone: 'text-indigo-700 bg-indigo-50 border-indigo-200',
-    },
-    {
-      title: 'En espera',
-      count: conversacionesFiltradas.filter(c => c.etiquetas.includes('En espera')).length,
-      tone: 'text-amber-700 bg-amber-50 border-amber-200',
-    },
-    {
-      title: 'Perdido',
-      count: conversacionesFiltradas.filter(c => c.etiquetas.includes('Perdido')).length,
-      tone: 'text-slate-700 bg-slate-100 border-slate-200',
-    },
-  ];
-
-  const getIconoCanal = (canal: CanalType) => {
+  const getIconoCanal = (canal: CanalType | 'google-ads') => {
     switch (canal) {
-      case 'tiktok':
-        return <span className="text-black font-semibold">🎵</span>;
-      case 'instagram':
-        return <span className="text-pink-600 font-semibold">📷</span>;
-      case 'youtube':
-        return <span className="text-red-600 font-semibold">▶️</span>;
-      case 'fan-page':
-        return <span className="text-blue-600 font-semibold">👥</span>;
+      case 'whatsapp':
+        return <span className="text-green-600 font-semibold text-xs">WA</span>;
       case 'facebook':
-        return <span className="text-blue-600 font-semibold">f</span>;
+        return <span className="text-blue-600 font-semibold text-xs">FB</span>;
+      case 'instagram':
+        return <span className="text-pink-600 font-semibold text-xs">IG</span>;
+      case 'tiktok':
+        return <span className="text-black font-semibold text-xs">TT</span>;
+      case 'youtube':
+        return <span className="text-red-600 font-semibold text-xs">YT</span>;
       case 'email':
-        return <span className="text-gray-600 font-semibold">✉️</span>;
+        return <span className="text-gray-600 font-semibold text-xs">✉</span>;
+      case 'fan-page':
+        return <span className="text-indigo-600 font-semibold text-xs">Web</span>;
+      case 'google-ads':
+        return <span className="text-blue-700 font-semibold text-xs">Ads</span>;
       default:
-        return <span className="text-gray-600 font-semibold">?</span>;
+        return <span className="text-gray-600 font-semibold text-xs">?</span>;
     }
   };
 
@@ -103,64 +131,128 @@ export function MatrixInbox({
     return `${Math.floor(minutos / 1440)}d`;
   };
 
-  return (
-    <div className="w-[320px] border-r border-gray-200 bg-white flex flex-col h-full">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900">Conversaciones</h2>
-          <span className="text-xs text-gray-500">{conversaciones.length}</span>
-        </div>
-        
-        {/* Búsqueda */}
-        <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Buscar..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="pl-10 text-sm bg-gray-50 border-gray-200 rounded-full"
-          />
-        </div>
+  const solicitudesNuevas = conversaciones.filter((c) => c.estado === 'pendiente' || c.mensajesNoLeidos > 0).length;
 
-        {/* Filtros de estado */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-full">
+  return (
+    <div className="w-[340px] border-r border-gray-200 bg-white flex flex-col h-full shrink-0 shadow-sm">
+      {/* New Message Requests (estilo imagen) */}
+      <div className="p-3 border-b border-gray-100">
+        <button
+          type="button"
+          className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
+        >
+          <div className="relative flex-shrink-0">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-lg font-semibold">
+              ?
+            </div>
+            {solicitudesNuevas > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center px-1">
+                {solicitudesNuevas > 99 ? '99+' : solicitudesNuevas}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900">Solicitudes nuevas</p>
+            <p className="text-xs text-gray-500 truncate">
+              {solicitudesNuevas === 0 ? 'Sin solicitudes' : `${solicitudesNuevas} mensaje(s) sin leer`}
+            </p>
+          </div>
+        </button>
+      </div>
+
+      {/* Todos los mensajes + iconos de redes */}
+      <div className="px-3 py-2 border-b border-gray-100 space-y-2">
+        <button
+          type="button"
+          onClick={() => setFiltroCanal(null)}
+          className={`w-full text-left py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+            filtroCanal === null
+              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+              : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
+          }`}
+        >
+          Todos los mensajes
+        </button>
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin items-center" style={{ scrollbarWidth: 'thin' }}>
+          {CANALES_KEILA.map((c) => {
+            const activo = filtroCanal === c.id;
+            const conectado = canalesConectados[c.id] !== false;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setFiltroCanal(filtroCanal === c.id ? null : (c.id as FiltroCanalType))}
+                title={`${c.label}${!conectado ? ' (desconectado)' : ''}`}
+                className={`flex-shrink-0 min-w-[36px] h-9 rounded-full px-2.5 border flex items-center justify-center text-xs font-semibold transition-all ${
+                  activo
+                    ? 'bg-blue-100 border-blue-300 text-blue-800'
+                    : conectado
+                    ? 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-100 border-gray-200 text-gray-400 opacity-70'
+                }`}
+              >
+                {c.id === 'email' ? <span className="text-gray-600">✉ Email</span> : getIconoCanal(c.id)}
+              </button>
+            );
+          })}
           <button
-            onClick={() => setFiltroEstado('activa')}
-            className={`flex-1 text-xs py-1.5 px-2 rounded-full transition-colors ${
-              filtroEstado === 'activa'
-                ? 'bg-white text-green-700 font-semibold shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            type="button"
+            onClick={() => setModalRedesOpen(true)}
+            className="flex-shrink-0 w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors"
+            title="Conectar o desconectar redes sociales"
+            aria-label="Configurar redes"
           >
-            🟢 Activas
-          </button>
-          <button
-            onClick={() => setFiltroEstado('pendiente')}
-            className={`flex-1 text-xs py-1.5 px-2 rounded-full transition-colors ${
-              filtroEstado === 'pendiente'
-                ? 'bg-white text-orange-700 font-semibold shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            ⏰ Pendientes
-          </button>
-          <button
-            onClick={() => setFiltroEstado('cerrada')}
-            className={`flex-1 text-xs py-1.5 px-2 rounded-full transition-colors ${
-              filtroEstado === 'cerrada'
-                ? 'bg-white text-gray-700 font-semibold shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            ✅ Cerradas
+            <Plus className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      {/* Lista de conversaciones */}
-      <div className="flex-1 overflow-y-auto bg-gray-50">
+      {/* Búsqueda local (si no viene de la barra) */}
+      {(!searchValue || searchValue.trim() === '') && (
+        <div className="px-3 py-2 border-b border-gray-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={busquedaLocal}
+              onChange={(e) => setBusquedaLocal(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm bg-gray-100 border-0 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Filtros de estado (compactos) */}
+      <div className="flex gap-1 px-3 py-2 border-b border-gray-100">
+        <button
+          onClick={() => setFiltroEstado('activa')}
+          className={`flex-1 text-xs py-1.5 px-2 rounded-full transition-colors ${
+            filtroEstado === 'activa' ? 'bg-green-100 text-green-700 font-semibold' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          Activas
+        </button>
+        <button
+          onClick={() => setFiltroEstado('pendiente')}
+          className={`flex-1 text-xs py-1.5 px-2 rounded-full transition-colors ${
+            filtroEstado === 'pendiente' ? 'bg-amber-100 text-amber-700 font-semibold' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          Pendientes
+        </button>
+        <button
+          onClick={() => setFiltroEstado('cerrada')}
+          className={`flex-1 text-xs py-1.5 px-2 rounded-full transition-colors ${
+            filtroEstado === 'cerrada' ? 'bg-gray-200 text-gray-700 font-semibold' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          Cerradas
+        </button>
+      </div>
+
+      {/* Lista de conversaciones (estilo imagen: barra azul a la izquierda en seleccionado) */}
+      <div className="flex-1 overflow-y-auto bg-white min-h-0">
         {/* Activas */}
         {filtroEstado === 'activa' && activas.length > 0 && (
           <div>
@@ -239,37 +331,35 @@ export function MatrixInbox({
         )}
       </div>
 
-      {/* Listas inteligentes */}
-      <div className="p-3 border-t border-gray-200 bg-white">
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
-          Listas inteligentes
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {listasInteligentes.map((item) => (
-            <div key={item.title} className={`rounded-lg border px-2 py-1.5 ${item.tone}`}>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold">{item.title}</span>
-                <span className="text-xs font-bold">{item.count}</span>
-              </div>
+      {/* Pie del panel: Dark Mode toggle (estilo Messenger) */}
+      <div className="p-3 border-t border-gray-200 bg-white shrink-0">
+        {onToggleDarkMode && (
+          <div className="flex items-center justify-between gap-3 px-3 py-2">
+            <div className="flex items-center gap-3 text-gray-700">
+              <Moon className="w-5 h-5 text-gray-500" />
+              <span className="text-sm font-medium">Modo oscuro</span>
             </div>
-          ))}
-        </div>
-
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-xs text-gray-500">Activas</p>
-            <p className="text-lg font-bold text-green-600">{activas.length}</p>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={darkMode}
+              onClick={onToggleDarkMode}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${darkMode ? 'bg-blue-600' : 'bg-gray-200'}`}
+            >
+              <span
+                className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow ring-0 transition ${darkMode ? 'translate-x-5 left-0.5' : 'translate-x-0 left-0.5'}`}
+              />
+            </button>
           </div>
-          <div>
-            <p className="text-xs text-gray-500">Pendientes</p>
-            <p className="text-lg font-bold text-orange-600">{pendientes.length}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Hoy</p>
-            <p className="text-lg font-bold text-gray-600">{cerradas.length}</p>
-          </div>
-        </div>
+        )}
       </div>
+
+      <RedesSocialesModal
+        isOpen={modalRedesOpen}
+        onClose={() => setModalRedesOpen(false)}
+        canalesConectados={canalesConectados}
+        onCambiar={handleCambiarCanalConectado}
+      />
     </div>
   );
 }
@@ -278,38 +368,61 @@ interface ConversacionCardProps {
   conversacion: Conversacion;
   activa: boolean;
   onClick: () => void;
-  getIconoCanal: (canal: CanalType) => JSX.Element;
+  getIconoCanal: (canal: CanalType | 'google-ads') => JSX.Element;
   formatearTiempo: (fecha: Date) => string;
 }
 
-function ConversacionCard({ 
-  conversacion, 
-  activa, 
+/** Detecta si el texto parece un PSID (ID numérico de Meta) en lugar de un nombre real */
+function esPsidONumero(texto: string): boolean {
+  if (!texto || texto.length < 10) return false;
+  return /^\d+$/.test(texto.trim());
+}
+
+function getNombreDisplay(conv: Conversacion): string {
+  const canal = conv.canal?.toLowerCase();
+  const esMeta = canal === 'facebook' || canal === 'instagram';
+  const nombre = conv.nombreContacto || '';
+  if (esMeta && esPsidONumero(nombre)) {
+    return canal === 'facebook' ? 'Contacto (Facebook)' : 'Contacto (Instagram)';
+  }
+  return nombre || 'Sin nombre';
+}
+
+function ConversacionCard({
+  conversacion,
+  activa,
   onClick,
   getIconoCanal,
-  formatearTiempo
+  formatearTiempo,
 }: ConversacionCardProps) {
+  const avatarStyle = getAvatarStyle(conversacion.id);
+  const nombreDisplay = getNombreDisplay(conversacion);
   return (
     <div
       onClick={onClick}
-      className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
-        activa 
-          ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' 
-          : conversacion.mensajesNoLeidos > 0
-          ? 'bg-blue-50/40 border-blue-100'
-          : 'bg-white border-gray-200'
-      }`}
+      className={`relative pl-1 pr-3 py-3 rounded-r-lg cursor-pointer transition-all hover:bg-gray-50 ${
+        activa ? 'bg-blue-50/80' : conversacion.mensajesNoLeidos > 0 ? 'bg-blue-50/40' : 'bg-white'
+      } ${activa ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-transparent'}`}
     >
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          {(() => {
-            const avatarStyle = getAvatarStyle(conversacion.id);
-            return (
-              <div className={`flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br ${avatarStyle.from} ${avatarStyle.to} flex items-center justify-center text-white font-semibold text-lg shadow-sm`}>
-                {avatarStyle.emoji}
-              </div>
-            );
-          })()}
+          {conversacion.avatar ? (
+            <Image
+              src={conversacion.avatar}
+              alt="Avatar"
+              width={40}
+              height={40}
+              unoptimized
+              className="flex-shrink-0 w-10 h-10 rounded-full object-cover border border-gray-200"
+            />
+          ) : (
+            <div
+              className={`flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br ${avatarStyle.from} ${avatarStyle.to} flex items-center justify-center text-white shadow-sm`}
+              title="Sin foto de perfil"
+            >
+              <User className="w-5 h-5" />
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded-full">
@@ -317,8 +430,8 @@ function ConversacionCard({
               </span>
               <p className={`text-sm truncate ${
                 conversacion.mensajesNoLeidos > 0 ? 'font-semibold text-gray-900' : 'text-gray-700'
-              }`}>
-                {conversacion.nombreContacto}
+              }`} title={conversacion.nombreContacto || nombreDisplay}>
+                {nombreDisplay}
               </p>
               {conversacion.enLinea && (
                 <span className="flex-shrink-0 w-2 h-2 bg-green-500 rounded-full"></span>

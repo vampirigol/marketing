@@ -1,27 +1,57 @@
 /**
  * Servicio para convertir Leads a Pacientes
- * Incluye: Auto-creación de paciente + cita + envío de confirmación
+ * Crea paciente y cita en el backend; la cita aparece en Recepción, embudo CRM y calendario.
+ * El backend envía la notificación WhatsApp al crear la cita.
  */
 
 import { Lead } from '@/types/matrix';
 import { Paciente, Cita } from '@/types/index';
+import { api } from '@/lib/api';
+import { pacientesService } from '@/lib/pacientes.service';
 
-interface ConversionResponse {
+export interface ConversionResponse {
   paciente: Paciente;
   cita: Cita;
   whatsappEnviado: boolean;
   tiempoTotal: number;
 }
 
-interface ConversionData {
+export interface ConversionData {
   leadId: string;
-  especialidad?: string;
-  tipoConsulta?: string;
-  fechaCita?: Date;
+  /** UUID de la sucursal (desde API sucursales) */
+  sucursalId: string;
+  /** Nombre de la sucursal (para actualizar lead y mostrarlo en embudo de la sucursal) */
+  sucursalNombre?: string;
+  /** Nombre del doctor (medicoAsignado) */
+  medicoAsignado: string;
+  /** Fecha de la cita (Date o string YYYY-MM-DD) */
+  fechaCita: Date | string;
+  /** Hora en formato "HH:mm" */
+  horaCita: string;
+  /** Especialidad o servicio (ej. Consulta Odontológica) */
+  especialidad: string;
+  tipoConsulta: string;
+  esPromocion?: boolean;
+}
+
+const ORIGEN_LEAD_VALIDOS = ['WhatsApp', 'Facebook', 'Instagram', 'Llamada', 'Presencial', 'Referido'] as const;
+type OrigenLead = (typeof ORIGEN_LEAD_VALIDOS)[number];
+
+function mapOrigenLead(canal: string | undefined): OrigenLead {
+  if (!canal) return 'Presencial';
+  const c = String(canal).toLowerCase();
+  if (c.includes('whatsapp')) return 'WhatsApp';
+  if (c.includes('facebook')) return 'Facebook';
+  if (c.includes('instagram')) return 'Instagram';
+  if (c.includes('llamada')) return 'Llamada';
+  if (c.includes('referido')) return 'Referido';
+  return 'Presencial';
 }
 
 /**
- * Convertir un Lead a Paciente con auto-creación de cita y WhatsApp
+ * Convertir un Lead a Paciente: crear paciente en backend, crear cita en backend.
+ * La cita queda en BD → se muestra en Recepción, embudo de la sucursal y calendario.
+ * El backend envía la confirmación por WhatsApp al crear la cita.
  */
 export async function convertirLeadAPaciente(
   lead: Lead,
@@ -29,195 +59,96 @@ export async function convertirLeadAPaciente(
 ): Promise<ConversionResponse> {
   const tiempoInicio = Date.now();
 
-  try {
-    // 1. Crear paciente desde el lead
-    const paciente = await crearPacienteDesdeLeads(lead);
+  const nombreCompleto = (lead.nombre && String(lead.nombre).trim()) || 'Paciente';
+  const telefono = (lead.telefono || '').trim() || (lead.customFields?.Telefono as string)?.trim() || '';
+  const email = (lead.email || '').trim() || (lead.customFields?.Email as string)?.trim() || '';
+  const noAfiliacion =
+    (typeof lead.customFields?.NoAfiliacion === 'string' && lead.customFields.NoAfiliacion.trim()) ||
+    '';
+  const edadNum =
+    typeof lead.customFields?.Edad === 'number'
+      ? lead.customFields.Edad
+      : typeof lead.customFields?.Edad === 'string'
+        ? parseInt(String(lead.customFields.Edad), 10) || 0
+        : 0;
+  const fechaNacimiento =
+    edadNum > 0
+      ? new Date(new Date().getFullYear() - edadNum, 0, 1)
+      : new Date(2000, 0, 1);
+  const fechaNacStr = fechaNacimiento.toISOString().slice(0, 10);
 
-    // 2. Auto-crear cita (paralelo)
-    const sucursalLead = typeof lead.customFields?.Sucursal === 'string' ? lead.customFields?.Sucursal : undefined;
-    const sucursalActual = typeof window !== 'undefined' ? localStorage.getItem('sucursalActual') || undefined : undefined;
-    const esPromocion =
-      typeof lead.customFields?.Promocion === 'boolean'
-        ? lead.customFields?.Promocion
-        : Array.isArray(lead.etiquetas) && lead.etiquetas.some((tag) => tag.toLowerCase().includes('promo'));
-
-    const citaPromise = crearCitaAutomatica(paciente.id, {
-      especialidad: data.especialidad || 'Consulta General',
-      tipoConsulta: data.tipoConsulta || 'Consulta Inicial',
-      fechaCita: data.fechaCita || generarFechaPruebaProxima(),
-      sucursalId: sucursalLead || sucursalActual || 'SUC-001',
-      esPromocion,
-    });
-
-    // 3. Enviar confirmación WhatsApp (paralelo)
-    const whatsappPromise = enviarConfirmacionWhatsApp(paciente, lead);
-
-    // Ejecutar en paralelo
-    const [cita, whatsappEnviado] = await Promise.all([citaPromise, whatsappPromise]);
-
-    const tiempoTotal = Date.now() - tiempoInicio;
-
-    console.log(`✅ Conversión completada en ${tiempoTotal}ms`);
-
-    return {
-      paciente,
-      cita,
-      whatsappEnviado,
-      tiempoTotal,
-    };
-  } catch (error) {
-    console.error('Error en conversión de lead a paciente:', error);
-    throw error;
+  if (!noAfiliacion) {
+    throw new Error('El número de afiliación es obligatorio. Genera uno antes de convertir.');
   }
-}
+  if (!telefono) {
+    throw new Error('El teléfono del paciente es obligatorio.');
+  }
 
-/**
- * Crear un nuevo paciente basado en datos del lead
- */
-async function crearPacienteDesdeLeads(lead: Lead): Promise<Paciente> {
-  // Extraer datos del lead
-  const nombreCompleto = lead.nombre;
-  const telefono = lead.telefono || '';
-  const email = lead.email || '';
-
-  const pacienteData = {
+  const pacientePayload = {
     nombreCompleto,
     telefono,
-    whatsapp: telefono, // Usar teléfono como WhatsApp
-    email,
-    fechaNacimiento: new Date(), // Será llenado después
-    edad: 0, // Será calculado después
+    whatsapp: telefono,
+    email: email || undefined,
+    fechaNacimiento: fechaNacStr,
+    edad: edadNum || 0,
     sexo: 'M' as const,
-    noAfiliacion: `LEAD-${lead.id}`,
-    tipoAfiliacion: 'Titular' as const,
-    origenLead: `${lead.canal}-${lead.status}`,
-    activo: true,
-    fechaRegistro: new Date(),
-    ultimaActualizacion: new Date(),
-    observaciones: `Convertido desde lead: ${lead.notas || 'Sin notas'}`,
+    noAfiliacion,
+    tipoAfiliacion: 'Particular' as const,
+    ciudad: (lead.customFields?.Ciudad as string) || '',
+    estado: (lead.customFields?.Estado as string) || '',
+    origenLead: mapOrigenLead(lead.canal),
+    observaciones: `Convertido desde lead (${lead.canal || 'CRM'}). ${lead.notas || ''}`.trim(),
   };
 
+  let paciente: Paciente;
   try {
-    // Simular API call (en producción sería a /api/pacientes)
-    const paciente: Paciente = {
-      id: `PAC-${Date.now()}`,
-      ...pacienteData,
-      fechaNacimiento: new Date(2000, 0, 1),
-      edad: new Date().getFullYear() - 2000,
-    };
-
-    console.log('✅ Paciente creado:', paciente);
-    return paciente;
-  } catch (error) {
-    console.error('Error creando paciente:', error);
-    throw error;
+    paciente = await pacientesService.crear(pacientePayload as Parameters<typeof pacientesService.crear>[0]);
+  } catch (err: unknown) {
+    const ax = err as { response?: { status?: number; data?: { paciente?: Paciente } } };
+    if (ax?.response?.status === 409 && ax.response.data?.paciente) {
+      paciente = ax.response.data.paciente;
+    } else {
+      throw err;
+    }
   }
-}
 
-/**
- * Crear paciente desde lead (versión corregida)
- */
-async function crearPacienteDesdeLeadFn(lead: Lead): Promise<Paciente> {
-  return crearPacienteDesdeLeads(lead);
-}
+  const fechaStr = typeof data.fechaCita === 'string' ? data.fechaCita.slice(0, 10) : data.fechaCita.toISOString().slice(0, 10);
 
-/**
- * Auto-crear una cita de prueba
- */
-async function crearCitaAutomatica(
-  pacienteId: string,
-  options: {
-    especialidad: string;
-    tipoConsulta: string;
-    fechaCita: Date;
-    sucursalId: string;
-    esPromocion: boolean;
-  }
-): Promise<Cita> {
-  const citaData = {
-    pacienteId,
-    sucursalId: options.sucursalId,
-    fechaCita: options.fechaCita,
-    horaCita: generarHoraPrueba(),
-    duracionMinutos: 30,
-    tipoConsulta: options.tipoConsulta,
-    especialidad: options.especialidad,
-    estado: 'Agendada' as const,
-    esPromocion: options.esPromocion,
-    costoConsulta: 250,
-    montoAbonado: 0,
-    saldoPendiente: 250,
-    reagendaciones: 0,
-    fechaCreacion: new Date(),
-    ultimaActualizacion: new Date(),
+  const citaPayload = {
+    pacienteId: paciente.id,
+    sucursalId: data.sucursalId,
+    fechaCita: fechaStr,
+    horaCita: data.horaCita,
+    tipoConsulta: data.tipoConsulta,
+    especialidad: data.especialidad,
+    medicoAsignado: data.medicoAsignado,
+    esPromocion: Boolean(data.esPromocion),
   };
 
-  try {
-    // Simular API call
-    const cita: Cita = {
-      id: `CITA-${Date.now()}`,
-      ...citaData,
-    };
+  const { data: resData } = await api.post<{ cita: Cita; confirmacionEnviada?: boolean }>('/citas', citaPayload);
+  const cita = resData.cita;
+  const confirmacionEnviada = resData.confirmacionEnviada === true;
+  const tiempoTotal = Date.now() - tiempoInicio;
 
-    console.log('✅ Cita creada:', cita);
-    return cita;
-  } catch (error) {
-    console.error('Error creando cita:', error);
-    throw error;
+  // Si el lead viene del backend (UUID), actualizarlo para que salga de Contact Center y aparezca en la sucursal
+  const esUuidLead = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lead.id);
+  if (esUuidLead) {
+    try {
+      await api.put(`/crm/leads/${lead.id}`, {
+        status: 'citas-locales',
+        citaId: cita.id,
+        sucursalId: data.sucursalId,
+        sucursalNombre: data.sucursalNombre || undefined,
+      });
+    } catch {
+      // Si falla (ej. lead no es solicitud de contacto), no bloquear la conversión
+    }
   }
+
+  return {
+    paciente,
+    cita,
+    whatsappEnviado: confirmacionEnviada,
+    tiempoTotal,
+  };
 }
-
-/**
- * Enviar confirmación por WhatsApp
- */
-async function enviarConfirmacionWhatsApp(paciente: Paciente, _lead: Lead): Promise<boolean> {
-  const mensaje = `¡Hola ${paciente.nombreCompleto}! 👋
-
-Gracias por tu interés. Hemos registrado tu cita para consulta inicial.
-
-📅 Fecha: ${new Date().toLocaleDateString('es-MX')}
-⏰ Hora: Próximamente confirmada
-💰 Costo: $250 MXN (Promoción especial)
-
-Recibe: Consulta + Diagnóstico + Plan de tratamiento
-
-¿Confirmas tu asistencia? Responde SÍ o llámanos al +1234567890
-
-¡Te esperamos! 🏥`;
-
-  try {
-    console.log('📱 Enviando WhatsApp a:', paciente.whatsapp);
-    console.log('Mensaje:', mensaje);
-
-    // Simular envío de WhatsApp
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    console.log('✅ WhatsApp enviado exitosamente');
-    return true;
-  } catch (error) {
-    console.error('Error enviando WhatsApp:', error);
-    return false;
-  }
-}
-
-/**
- * Generar fecha de prueba para próxima cita (7 días después)
- */
-function generarFechaPruebaProxima(): Date {
-  const fecha = new Date();
-  fecha.setDate(fecha.getDate() + 7);
-  return fecha;
-}
-
-/**
- * Generar hora de prueba
- */
-function generarHoraPrueba(): string {
-  const horas = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'];
-  return horas[Math.floor(Math.random() * horas.length)];
-}
-
-/**
- * Exportar función corregida
- */
-export const crearPacienteDesdeLeads_impl = crearPacienteDesdeLeadFn;

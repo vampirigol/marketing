@@ -1,12 +1,13 @@
 'use client';
 
 import { Lead, CanalType, AlertSettings, CustomFieldsSettings, CustomFieldDefinition } from '@/types/matrix';
-import { Phone, Mail, Calendar, DollarSign, MessageSquare, MoreVertical, GripVertical, RotateCw } from 'lucide-react';
+import { Phone, Mail, Calendar, DollarSign, MessageSquare, MoreVertical, GripVertical, RotateCw, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { memo, useMemo, useState } from 'react';
 import { formatearMoneda, formatearFechaRelativa, obtenerIniciales, compararLeads } from '@/lib/kanban.utils';
 import { obtenerPrediccionLead } from '@/lib/predictive.utils';
 import { evaluarAlertasContextuales, defaultAlertSettings } from '@/lib/alerts.utils';
+import { getSlaAlertaLead } from '@/lib/crm-funnels.service';
 import { DEFAULT_CUSTOM_FIELDS_SETTINGS, formatCustomFieldValue } from '@/lib/custom-fields.utils';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -23,8 +24,13 @@ interface LeadCardProps {
   density?: 'comfortable' | 'compact' | 'dense';
   alertSettings?: AlertSettings;
   customFieldsSettings?: CustomFieldsSettings;
-  primaryAction?: { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' } | null;
-  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada') => void;
+  primaryAction?: { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia' } | null;
+  secondaryAction?: { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia' } | null;
+  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia') => void;
+  /** Si está definido y el lead tiene CitaId, se muestra botón "Enviar recordatorio" (embudo sucursal). */
+  onEnviarRecordatorio?: (citaId: string) => void | Promise<void>;
+  /** Map status -> slaHoras para mostrar alerta SLA en tarjeta (warning/exceeded). */
+  slaHorasByStatus?: Partial<Record<import('@/types/matrix').LeadStatus, number>>;
   hideConversionAction?: boolean;
 }
 
@@ -50,7 +56,9 @@ function arePropsEqual(prevProps: LeadCardProps, nextProps: LeadCardProps): bool
     prevProps.viewMode === nextProps.viewMode &&
     prevProps.density === nextProps.density &&
     prevProps.primaryAction?.actionId === nextProps.primaryAction?.actionId &&
-    prevProps.primaryAction?.label === nextProps.primaryAction?.label
+    prevProps.primaryAction?.label === nextProps.primaryAction?.label &&
+    prevProps.secondaryAction?.actionId === nextProps.secondaryAction?.actionId &&
+    prevProps.secondaryAction?.label === nextProps.secondaryAction?.label
   );
 }
 
@@ -65,12 +73,21 @@ export const LeadCard = memo(function LeadCard({
   alertSettings = defaultAlertSettings,
   customFieldsSettings = DEFAULT_CUSTOM_FIELDS_SETTINGS,
   primaryAction = null,
+  secondaryAction = null,
   onPrimaryAction,
+  onEnviarRecordatorio,
+  slaHorasByStatus,
   hideConversionAction = false,
 }: LeadCardProps) {
   const { isLeadSelected, toggleLeadSelection } = useDragContext();
   const isSelected = isLeadSelected(lead.id);
   const [showConversionModal, setShowConversionModal] = useState(false);
+  const [recordatorioEnviando, setRecordatorioEnviando] = useState(false);
+  const citaId = lead.customFields?.CitaId as string | undefined;
+  const slaAlerta = useMemo(
+    () => (slaHorasByStatus ? getSlaAlertaLead(lead, slaHorasByStatus) : null),
+    [lead, slaHorasByStatus]
+  );
 
   // Setup drag & drop
   const {
@@ -150,6 +167,9 @@ export const LeadCard = memo(function LeadCard({
       toggleLeadSelection(lead.id, true);
     } else if (onClick) {
       onClick();
+    } else {
+      // Al hacer clic en la tarjeta sin acción externa: abrir modal de conversión con datos de agendamiento
+      setShowConversionModal(true);
     }
   };
 
@@ -164,6 +184,13 @@ export const LeadCard = memo(function LeadCard({
 
   const titleClass = density === 'dense' ? 'text-xs' : 'text-sm';
 
+  const slaBorderClass =
+    slaAlerta === 'exceeded'
+      ? 'border-l-4 border-l-red-500'
+      : slaAlerta === 'warning'
+      ? 'border-l-4 border-l-amber-500'
+      : '';
+
   return (
     <div
       ref={setNodeRef}
@@ -171,7 +198,7 @@ export const LeadCard = memo(function LeadCard({
       style={{ ...style, ...sortableStyle }}
       className={`bg-white border rounded-lg ${densityClasses} hover:shadow-md transition-all cursor-pointer group relative ${
         isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200'
-      } ${isDragging || isSortableDragging ? 'shadow-lg scale-105' : ''}`}
+      } ${slaBorderClass} ${isDragging || isSortableDragging ? 'shadow-lg scale-105' : ''}`}
     >
       {/* Modal de conversión */}
       <ConversionModal
@@ -198,6 +225,18 @@ export const LeadCard = memo(function LeadCard({
       {isSelected && (
         <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg">
           ✓
+        </div>
+      )}
+
+      {/* SLA alerta */}
+      {slaAlerta && slaAlerta !== 'ok' && (
+        <div
+          className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-semibold shadow ${
+            slaAlerta === 'exceeded' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'
+          }`}
+          title={slaAlerta === 'exceeded' ? 'SLA superado' : 'SLA por vencer'}
+        >
+          {slaAlerta === 'exceeded' ? 'SLA' : 'SLA'}
         </div>
       )}
 
@@ -303,6 +342,24 @@ export const LeadCard = memo(function LeadCard({
         </div>
       </div>
 
+      {/* Datos de agendamiento (si existen) — clic abre modal con formulario completo */}
+      {viewMode === 'expanded' && (sucursalLead || servicioLead || lead.customFields?.FechaCita) && (
+        <div className="mb-2 rounded-lg border border-blue-100 bg-blue-50/60 p-2">
+          <p className="text-[10px] font-semibold text-blue-800 uppercase tracking-wide mb-1">Agendamiento</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-blue-800">
+            {sucursalLead && <span>Suc: {sucursalLead}</span>}
+            {servicioLead && <span>Serv: {servicioLead}</span>}
+            {lead.customFields?.FechaCita && (
+              <span>Fecha: {String(lead.customFields.FechaCita)}</span>
+            )}
+            {lead.customFields?.HoraCita && (
+              <span>Hora: {String(lead.customFields.HoraCita)}</span>
+            )}
+          </div>
+          <p className="text-[10px] text-blue-600 mt-1">Clic en la tarjeta para ver/editar datos completos</p>
+        </div>
+      )}
+
       {/* Información de contacto */}
       {viewMode === 'expanded' && (
         <div className="mb-3 text-left">
@@ -323,16 +380,50 @@ export const LeadCard = memo(function LeadCard({
         </div>
       )}
 
-      {viewMode === 'expanded' && primaryAction && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPrimaryAction?.(lead, primaryAction.actionId);
-          }}
-          className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
-        >
-          {primaryAction.label}
-        </button>
+      {viewMode === 'expanded' && (primaryAction || secondaryAction || (onEnviarRecordatorio && citaId)) && (
+        <div className="flex flex-col gap-1.5">
+          {primaryAction && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrimaryAction?.(lead, primaryAction.actionId);
+              }}
+              className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              {primaryAction.label}
+            </button>
+          )}
+          {secondaryAction && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrimaryAction?.(lead, secondaryAction.actionId);
+              }}
+              className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+            >
+              {secondaryAction.label}
+            </button>
+          )}
+          {onEnviarRecordatorio && citaId && (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (recordatorioEnviando) return;
+                setRecordatorioEnviando(true);
+                try {
+                  await onEnviarRecordatorio(citaId);
+                } finally {
+                  setRecordatorioEnviando(false);
+                }
+              }}
+              disabled={recordatorioEnviando}
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              {recordatorioEnviando ? 'Enviando…' : 'Enviar recordatorio'}
+            </button>
+          )}
+        </div>
       )}
 
       {/* Vista compacta: contacto + interés */}
@@ -358,16 +449,50 @@ export const LeadCard = memo(function LeadCard({
         </div>
       )}
 
-      {viewMode === 'compact' && primaryAction && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPrimaryAction?.(lead, primaryAction.actionId);
-          }}
-          className="w-full rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
-        >
-          {primaryAction.label}
-        </button>
+      {viewMode === 'compact' && (primaryAction || secondaryAction || (onEnviarRecordatorio && citaId)) && (
+        <div className="flex flex-col gap-1">
+          {primaryAction && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrimaryAction?.(lead, primaryAction.actionId);
+              }}
+              className="w-full rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              {primaryAction.label}
+            </button>
+          )}
+          {secondaryAction && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrimaryAction?.(lead, secondaryAction.actionId);
+              }}
+              className="w-full rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+            >
+              {secondaryAction.label}
+            </button>
+          )}
+          {onEnviarRecordatorio && citaId && (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (recordatorioEnviando) return;
+                setRecordatorioEnviando(true);
+                try {
+                  await onEnviarRecordatorio(citaId);
+                } finally {
+                  setRecordatorioEnviando(false);
+                }
+              }}
+              disabled={recordatorioEnviando}
+              className="w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-1 disabled:opacity-50"
+            >
+              <Bell className="w-3 h-3" />
+              {recordatorioEnviando ? '…' : 'Recordatorio'}
+            </button>
+          )}
+        </div>
       )}
 
       {/* Valor estimado */}

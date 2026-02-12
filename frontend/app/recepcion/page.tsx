@@ -21,6 +21,7 @@ import { MarcarLlegadaModal } from '@/components/recepcion/MarcarLlegadaModal';
 import { citasService } from '@/lib/citas.service';
 import { pacientesService } from '@/lib/pacientes.service';
 import { obtenerSucursales, SucursalApi } from '@/lib/sucursales.service';
+import { SUCURSALES } from '@/lib/doctores-data';
 
 interface Cita {
   id: string;
@@ -63,12 +64,35 @@ export default function RecepcionPage() {
   const [citasHoy, setCitasHoy] = useState<Cita[]>([]);
 
   useEffect(() => {
+    const fallbackSucursales: SucursalApi[] = SUCURSALES.map((nombre, index) => ({
+      id: `fallback-${index}`,
+      nombre,
+      ciudad: '',
+      estado: '',
+      direccion: '',
+      telefono: '',
+      zonaHoraria: 'America/Mexico_City',
+      activa: true,
+    }));
+
     const cargarSucursales = async () => {
       try {
         const data = await obtenerSucursales(true);
-        setSucursales(data);
+        if (!data || data.length === 0) {
+          setSucursales(fallbackSucursales);
+        } else {
+          const nombresApi = new Set(data.map((s) => s.nombre));
+          const merged = [...data];
+          fallbackSucursales.forEach((fallback) => {
+            if (!nombresApi.has(fallback.nombre)) {
+              merged.push(fallback);
+            }
+          });
+          setSucursales(merged);
+        }
       } catch (error) {
         console.error('Error cargando sucursales:', error);
+        setSucursales(fallbackSucursales);
       }
     };
     cargarSucursales();
@@ -120,7 +144,7 @@ export default function RecepcionPage() {
     try {
       const fecha = new Date().toISOString().split('T')[0];
       const citasBackend = await citasService.obtenerPorSucursalYFecha(sucursalIdActual, fecha);
-      const pacienteIds = Array.from(new Set(citasBackend.map((c: any) => c.pacienteId)));
+      const pacienteIds = Array.from(new Set(citasBackend.map((c: { pacienteId: string }) => c.pacienteId))) as string[];
       const pacientes = await Promise.all(
         pacienteIds.map((id) => pacientesService.obtenerPorId(id).catch(() => null))
       );

@@ -13,6 +13,9 @@ import {
   Mail, 
   MapPin,
   Calendar,
+  Users,
+  Sparkles,
+  Clock,
   Edit,
   Eye,
   Filter,
@@ -21,12 +24,20 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { pacientesService } from '@/lib/pacientes.service';
+import { citasService } from '@/lib/citas.service';
+import { obtenerSucursales, SucursalApi } from '@/lib/sucursales.service';
+import type { Paciente, Cita } from '@/types';
 
 export default function PacientesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPaciente, setSelectedPaciente] = useState(null);
+  const [selectedPaciente, setSelectedPaciente] = useState<Paciente | null>(null);
   const [sucursalActual, setSucursalActual] = useState('Guadalajara');
+  const [sucursales, setSucursales] = useState<SucursalApi[]>([]);
+  const [sucursalIdActual, setSucursalIdActual] = useState<string | null>(null);
+  const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [citasHoy, setCitasHoy] = useState<Cita[]>([]);
 
   useEffect(() => {
     const savedSucursal = localStorage.getItem('sucursalActual');
@@ -34,6 +45,59 @@ export default function PacientesPage() {
       setSucursalActual(savedSucursal);
     }
   }, []);
+
+  useEffect(() => {
+    const cargarSucursales = async () => {
+      try {
+        const data = await obtenerSucursales(true);
+        setSucursales(data);
+      } catch (error) {
+        console.error('Error cargando sucursales:', error);
+      }
+    };
+    cargarSucursales();
+  }, []);
+
+  useEffect(() => {
+    if (!sucursales.length) return;
+    const match = sucursales.find((s) => s.nombre === sucursalActual);
+    const seleccion = match || sucursales[0];
+    if (!seleccion) return;
+    setSucursalIdActual(seleccion.id);
+    if (!match) {
+      setSucursalActual(seleccion.nombre);
+      localStorage.setItem('sucursalActual', seleccion.nombre);
+    }
+  }, [sucursales, sucursalActual]);
+
+  useEffect(() => {
+    const cargarPacientes = async () => {
+      try {
+        const data = await pacientesService.listar(1000, 0);
+        setPacientes(data);
+      } catch (error) {
+        console.error('Error cargando pacientes:', error);
+      }
+    };
+    cargarPacientes();
+  }, []);
+
+  useEffect(() => {
+    const cargarCitasHoy = async () => {
+      if (!sucursalIdActual) {
+        setCitasHoy([]);
+        return;
+      }
+      try {
+        const fecha = new Date().toISOString().split('T')[0];
+        const data = await citasService.obtenerPorSucursalYFecha(sucursalIdActual, fecha);
+        setCitasHoy(data);
+      } catch (error) {
+        console.error('Error cargando citas de hoy:', error);
+      }
+    };
+    cargarCitasHoy();
+  }, [sucursalIdActual]);
 
   const handleCreatePaciente = () => {
     setSelectedPaciente(null);
@@ -50,80 +114,76 @@ export default function PacientesPage() {
     // Aquí conectaremos con el API
   };
 
-  // Datos de ejemplo (después conectaremos con el API)
-  const pacientes = [
-    {
-      id: '1',
-      nombreCompleto: 'María González Pérez',
-      telefono: '+52 55 1234-5678',
-      email: 'maria.gonzalez@email.com',
-      noAfiliacion: 'RCA-2024-001',
-      edad: 32,
-      ciudad: 'Guadalajara',
-      sucursal: 'Guadalajara',
-      ultimaCita: '15 Ene 2026',
-      estado: 'Activo'
-    },
-    {
-      id: '2',
-      nombreCompleto: 'Pedro Sánchez López',
-      telefono: '+52 55 2345-6789',
-      email: 'pedro.sanchez@email.com',
-      noAfiliacion: 'RCA-2024-002',
-      edad: 45,
-      ciudad: 'Ciudad Juárez',
-      sucursal: 'Ciudad Juárez',
-      ultimaCita: '28 Ene 2026',
-      estado: 'Activo'
-    },
-    {
-      id: '3',
-      nombreCompleto: 'Ana Martínez Rodríguez',
-      telefono: '+52 55 3456-7890',
-      email: 'ana.martinez@email.com',
-      noAfiliacion: 'RCA-2024-003',
-      edad: 28,
-      ciudad: 'Ciudad Obregón',
-      sucursal: 'Ciudad Obregón',
-      ultimaCita: '01 Feb 2026',
-      estado: 'Activo'
-    },
-    {
-      id: '4',
-      nombreCompleto: 'Carlos López García',
-      telefono: '+52 55 4567-8901',
-      email: 'carlos.lopez@email.com',
-      noAfiliacion: 'RCA-2024-004',
-      edad: 55,
-      ciudad: 'Guadalajara',
-      sucursal: 'Guadalajara',
-      ultimaCita: '10 Dic 2025',
-      estado: 'Inactivo'
-    },
-  ];
+  const formatFecha = (value?: Date | string) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
 
   const pacientesFiltrados = useMemo(() => {
     return pacientes.filter((paciente) => {
-      if (sucursalActual && paciente.sucursal !== sucursalActual) return false;
+      if (sucursalActual && paciente.ciudad && paciente.ciudad !== sucursalActual) return false;
       if (!searchQuery) return true;
       const query = searchQuery.toLowerCase();
       return (
         paciente.nombreCompleto.toLowerCase().includes(query) ||
         paciente.telefono.toLowerCase().includes(query) ||
-        paciente.email.toLowerCase().includes(query) ||
+        paciente.email?.toLowerCase().includes(query) ||
         paciente.noAfiliacion.toLowerCase().includes(query)
       );
     });
   }, [pacientes, searchQuery, sucursalActual]);
 
   const stats = useMemo(() => {
+    const hoy = new Date();
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const nuevosEsteMes = pacientesFiltrados.filter((paciente) => {
+      if (!paciente.fechaRegistro) return false;
+      const fechaRegistro = new Date(paciente.fechaRegistro);
+      return fechaRegistro >= inicioMes;
+    }).length;
+
+    const pacientesConCitaHoy = new Set(citasHoy.map((cita) => cita.pacienteId)).size;
+    const pendientesHoy = citasHoy.filter((cita) =>
+      ['Pendiente_Confirmacion', 'Agendada'].includes(cita.estado)
+    ).length;
+
     return [
-      { label: 'Total Pacientes', value: `${pacientesFiltrados.length}`, icon: '👥', color: 'from-blue-500 to-blue-600' },
-      { label: 'Nuevos (Este Mes)', value: '47', icon: '✨', color: 'from-purple-500 to-purple-600' },
-      { label: 'Con Citas Hoy', value: '23', icon: '📅', color: 'from-emerald-500 to-emerald-600' },
-      { label: 'Pendientes', value: '8', icon: '⏰', color: 'from-orange-500 to-orange-600' },
+      {
+        label: 'Total Pacientes',
+        value: `${pacientesFiltrados.length}`,
+        icon: Users,
+        iconBg: 'bg-blue-50',
+        iconColor: 'text-blue-600',
+      },
+      {
+        label: 'Nuevos (Este Mes)',
+        value: `${nuevosEsteMes}`,
+        icon: Sparkles,
+        iconBg: 'bg-purple-50',
+        iconColor: 'text-purple-600',
+      },
+      {
+        label: 'Con Citas Hoy',
+        value: `${pacientesConCitaHoy}`,
+        icon: Calendar,
+        iconBg: 'bg-emerald-50',
+        iconColor: 'text-emerald-600',
+      },
+      {
+        label: 'Pendientes',
+        value: `${pendientesHoy}`,
+        icon: Clock,
+        iconBg: 'bg-orange-50',
+        iconColor: 'text-orange-600',
+      },
     ];
-  }, [pacientesFiltrados.length]);
+  }, [pacientesFiltrados, citasHoy]);
 
   return (
     <DashboardLayout>
@@ -131,8 +191,8 @@ export default function PacientesPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-display font-bold text-gray-900">Pacientes</h1>
-            <p className="text-gray-600 mt-1">
+            <h1 className="text-3xl font-bold text-gray-900">👥 Pacientes</h1>
+            <p className="text-gray-500 mt-1">
               Gestión completa de pacientes · {sucursalActual}
             </p>
           </div>
@@ -143,16 +203,20 @@ export default function PacientesPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {stats.map((stat, index) => (
-            <Card key={index} className={`bg-gradient-to-br ${stat.color} border-0 shadow-lg hover:shadow-xl transition-all duration-300`}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-white/90 font-medium">{stat.label}</p>
-                    <p className="text-4xl font-bold text-white mt-2">{stat.value}</p>
+            <Card key={index} className="border-0 shadow-sm hover:shadow-md transition-all">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`p-2 rounded-lg ${stat.iconBg}`}>
+                    <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
                   </div>
-                  <div className="text-5xl opacity-80">{stat.icon}</div>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -247,13 +311,13 @@ export default function PacientesPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-1">
-                          <div className="flex items-center text-sm text-gray-600">
+                        <div className="flex items-center text-sm text-gray-600">
                             <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                            {paciente.telefono}
+                          {paciente.telefono}
                           </div>
                           <div className="flex items-center text-sm text-gray-600">
                             <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                            {paciente.email}
+                          {paciente.email || '-'}
                           </div>
                         </div>
                       </td>
@@ -268,18 +332,18 @@ export default function PacientesPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center text-sm text-gray-600">
                           <MapPin className="w-4 h-4 mr-1 text-gray-400" />
-                          {paciente.ciudad}
+                        {paciente.ciudad || '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center text-sm text-gray-600">
                           <Calendar className="w-4 h-4 mr-1 text-gray-400" />
-                          {paciente.ultimaCita}
+                        {formatFecha(paciente.ultimaActualizacion || paciente.fechaRegistro)}
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <Badge variant={paciente.estado === 'Activo' ? 'success' : 'secondary'}>
-                          {paciente.estado}
+                      <Badge variant={paciente.activo ? 'success' : 'secondary'}>
+                        {paciente.activo ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </td>
                       <td className="px-6 py-4">

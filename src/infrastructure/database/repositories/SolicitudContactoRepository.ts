@@ -14,12 +14,17 @@ export interface SolicitudContactoRepository {
   crear(solicitud: SolicitudContacto): Promise<SolicitudContacto>;
   obtenerPorId(id: string): Promise<SolicitudContacto | null>;
   obtenerPorSucursal(sucursalId: string): Promise<SolicitudContacto[]>;
+  obtenerPorSucursalNombre(sucursalNombre: string): Promise<SolicitudContacto[]>;
   obtenerPorEstado(estado: EstadoSolicitud): Promise<SolicitudContacto[]>;
   obtenerPorAgente(agenteId: string): Promise<SolicitudContacto[]>;
   obtenerPendientes(): Promise<SolicitudContacto[]>;
   obtenerVencidas(): Promise<SolicitudContacto[]>;
   actualizar(id: string, datos: Partial<SolicitudContacto>): Promise<SolicitudContacto>;
   obtenerTodas(): Promise<SolicitudContacto[]>;
+  /** Leads sin cita_id (aún no convertidos). Contact Center solo muestra estos. */
+  obtenerPendientesConversion(): Promise<SolicitudContacto[]>;
+  /** Busca una solicitud activa (no resuelta/cancelada, sin cita) por teléfono/whatsapp para vincular desde webhooks. */
+  obtenerPendientePorTelefono(telefono: string): Promise<SolicitudContacto | null>;
   obtenerEstadisticas(sucursalId?: string): Promise<{
     total: number;
     pendientes: number;
@@ -48,9 +53,10 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
         sucursal_id, sucursal_nombre, motivo, motivo_detalle, preferencia_contacto,
         estado, prioridad, agente_asignado_id, agente_asignado_nombre, intentos_contacto,
         ultimo_intento, notas, resolucion, origen, creado_por, fecha_creacion,
-        fecha_asignacion, fecha_resolucion, ultima_actualizacion, crm_status, crm_resultado
+        fecha_asignacion, fecha_resolucion, ultima_actualizacion, crm_status, crm_resultado,
+        no_afiliacion, cita_id
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29
       ) RETURNING *
     `;
 
@@ -82,6 +88,8 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
       solicitud.ultimaActualizacion,
       solicitud.crmStatus || null,
       solicitud.crmResultado || null,
+      solicitud.noAfiliacion || null,
+      solicitud.citaId || null,
     ];
 
     const result = await this.pool.query(query, values);
@@ -98,6 +106,14 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
     const result = await this.pool.query(
       'SELECT * FROM solicitudes_contacto WHERE sucursal_id = $1 ORDER BY fecha_creacion DESC',
       [sucursalId]
+    );
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerPorSucursalNombre(sucursalNombre: string): Promise<SolicitudContacto[]> {
+    const result = await this.pool.query(
+      'SELECT * FROM solicitudes_contacto WHERE sucursal_nombre = $1 ORDER BY fecha_creacion DESC',
+      [sucursalNombre]
     );
     return result.rows.map((row) => this.mapToEntity(row));
   }
@@ -160,6 +176,8 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
         ultimaActualizacion: 'ultima_actualizacion',
         crmStatus: 'crm_status',
         crmResultado: 'crm_resultado',
+        citaId: 'cita_id',
+        noAfiliacion: 'no_afiliacion',
       };
       return mapping[key] || key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
     };
@@ -191,6 +209,31 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
       'SELECT * FROM solicitudes_contacto ORDER BY fecha_creacion DESC'
     );
     return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  /** Leads aún no convertidos (sin cita creada). Usado por Contact Center. */
+  async obtenerPendientesConversion(): Promise<SolicitudContacto[]> {
+    const result = await this.pool.query(
+      `SELECT * FROM solicitudes_contacto WHERE cita_id IS NULL ORDER BY fecha_creacion DESC`
+    );
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async obtenerPendientePorTelefono(telefono: string): Promise<SolicitudContacto | null> {
+    const normalized = telefono.replace(/\D/g, '').slice(-10);
+    if (normalized.length < 10) return null;
+    const result = await this.pool.query(
+      `SELECT * FROM solicitudes_contacto
+       WHERE cita_id IS NULL AND estado IN ('Pendiente','Asignada','En_Contacto')
+         AND (
+           RIGHT(REGEXP_REPLACE(COALESCE(telefono,''), '[^0-9]', '', 'g'), 10) = $1
+           OR RIGHT(REGEXP_REPLACE(COALESCE(whatsapp,''), '[^0-9]', '', 'g'), 10) = $1
+         )
+       ORDER BY fecha_creacion DESC LIMIT 1`,
+      [normalized]
+    );
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
   }
 
   async obtenerEstadisticas(sucursalId?: string): Promise<{
@@ -265,6 +308,8 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
       ultimaActualizacion: row.ultima_actualizacion,
       crmStatus: row.crm_status || undefined,
       crmResultado: row.crm_resultado || undefined,
+      citaId: row.cita_id || undefined,
+      noAfiliacion: row.no_afiliacion || undefined,
     };
   }
 }
@@ -289,6 +334,12 @@ export class InMemorySolicitudContactoRepository implements SolicitudContactoRep
   async obtenerPorSucursal(sucursalId: string): Promise<SolicitudContacto[]> {
     return Array.from(this.solicitudes.values())
       .filter(s => s.sucursalId === sucursalId)
+      .map(s => ({ ...s }));
+  }
+
+  async obtenerPorSucursalNombre(sucursalNombre: string): Promise<SolicitudContacto[]> {
+    return Array.from(this.solicitudes.values())
+      .filter(s => s.sucursalNombre === sucursalNombre)
       .map(s => ({ ...s }));
   }
 
@@ -341,6 +392,26 @@ export class InMemorySolicitudContactoRepository implements SolicitudContactoRep
 
   async obtenerTodas(): Promise<SolicitudContacto[]> {
     return Array.from(this.solicitudes.values()).map(s => ({ ...s }));
+  }
+
+  async obtenerPendientesConversion(): Promise<SolicitudContacto[]> {
+    return Array.from(this.solicitudes.values())
+      .filter(s => !s.citaId)
+      .map(s => ({ ...s }));
+  }
+
+  async obtenerPendientePorTelefono(telefono: string): Promise<SolicitudContacto | null> {
+    const normalized = telefono.replace(/\D/g, '').slice(-10);
+    if (normalized.length < 10) return null;
+    const activos = Array.from(this.solicitudes.values()).filter(
+      (s) =>
+        !s.citaId &&
+        ['Pendiente', 'Asignada', 'En_Contacto'].includes(s.estado) &&
+        (s.telefono?.replace(/\D/g, '').slice(-10) === normalized ||
+          s.whatsapp?.replace(/\D/g, '').slice(-10) === normalized)
+    );
+    activos.sort((a, b) => b.fechaCreacion.getTime() - a.fechaCreacion.getTime());
+    return activos[0] ? { ...activos[0] } : null;
   }
 
   async obtenerEstadisticas(sucursalId?: string): Promise<{

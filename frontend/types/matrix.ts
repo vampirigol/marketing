@@ -2,7 +2,7 @@
  * Tipos para el sistema Matrix Keila (Contact Center)
  */
 
-export type CanalType = 'whatsapp' | 'tiktok' | 'instagram' | 'youtube' | 'fan-page' | 'facebook' | 'email';
+export type CanalType = 'whatsapp' | 'tiktok' | 'instagram' | 'youtube' | 'fan-page' | 'facebook' | 'email' | 'google-ads';
 export type ConversacionEstado = 'activa' | 'pendiente' | 'cerrada';
 export type MensajeEstado = 'enviado' | 'entregado' | 'leido';
 
@@ -97,11 +97,21 @@ export interface CustomFieldsSettings {
 }
 
 // Tipos para la vista Kanban de Leads
-export type LeadStatus = 'new' | 'reviewing' | 'rejected' | 'qualified' | 'open' | 'in-progress' | 'open-deal';
+export type LeadStatus =
+  | 'new'
+  | 'reviewing'
+  | 'rejected'
+  | 'qualified'
+  | 'open'
+  | 'in-progress'
+  | 'open-deal'
+  | 'agendados-mobile'
+  | 'citas-locales';  // Citas agendadas desde Citas, CRM, Doctores (no redes sociales)
 
 export interface Lead {
   id: string;
   nombre: string;
+  nombreContacto?: string; // Alias usado por CRM/API
   email?: string;
   telefono?: string;
   avatar?: string;

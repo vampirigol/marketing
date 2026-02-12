@@ -6,7 +6,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { HeatmapAnalysisModal } from './HeatmapAnalysisModal';
 import { ConfirmMoveModal } from './ConfirmMoveModal';
 import { BulkActionsBar } from './BulkActionsBar';
-import { Search, SlidersHorizontal, RefreshCw, ArrowUpRight, ArrowDownRight, Activity, Bell, ChevronDown } from 'lucide-react';
+import { Search, SlidersHorizontal, RefreshCw, ArrowUpRight, ArrowDownRight, Activity, Bell, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { useInfiniteScrollKanban } from '@/hooks/useInfiniteScrollKanban';
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, PointerSensor, useSensor, useSensors, closestCorners } from '@dnd-kit/core';
@@ -30,8 +30,13 @@ interface MatrixKanbanViewProps {
   columnConfigs?: KanbanColumnConfig[];
   boardSettingsKey?: string;
   initialStates?: LeadStatus[];
-  getPrimaryAction?: (lead: Lead) => { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' } | null;
-  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada') => void;
+  getPrimaryAction?: (lead: Lead) => { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia' } | null;
+  getSecondaryAction?: (lead: Lead) => { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia' } | null;
+  onPrimaryAction?: (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia') => void;
+  /** Si está definido, las tarjetas con CitaId muestran "Enviar recordatorio" (embudo sucursal). */
+  onEnviarRecordatorio?: (citaId: string) => void | Promise<void>;
+  /** Map status -> slaHoras para alertas SLA en tarjeta (borde/badge). */
+  slaHorasByStatus?: Partial<Record<LeadStatus, number>>;
   hideConversionAction?: boolean;
   onMoveLead?: (leadId: string, fromStatus: LeadStatus, toStatus: LeadStatus, lead: Lead) => Promise<void> | void;
 }
@@ -57,7 +62,10 @@ function MatrixKanbanViewContent({
   boardSettingsKey,
   initialStates,
   getPrimaryAction,
+  getSecondaryAction,
   onPrimaryAction,
+  onEnviarRecordatorio,
+  slaHorasByStatus,
   hideConversionAction = false,
   onMoveLead,
 }: MatrixKanbanViewProps) {
@@ -85,6 +93,7 @@ function MatrixKanbanViewContent({
   } | null>(null);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(defaultAlertSettings);
   const [isAlertSettingsOpen, setIsAlertSettingsOpen] = useState(false);
+  const kanbanScrollRef = useRef<HTMLDivElement>(null);
   const columnConfigsToUse = useMemo(
     () => (columnConfigs && columnConfigs.length > 0 ? columnConfigs : DEFAULT_COLUMN_CONFIGS),
     [columnConfigs]
@@ -120,6 +129,13 @@ function MatrixKanbanViewContent({
     onLoadMore,
     initialStates: statesToUse,
   });
+
+  const scrollKanban = (direction: 'left' | 'right') => {
+    const container = kanbanScrollRef.current;
+    if (!container) return;
+    const delta = direction === 'left' ? -420 : 420;
+    container.scrollBy({ left: delta, behavior: 'smooth' });
+  };
 
   // Configurar sensores para drag and drop
   const sensors = useSensors(
@@ -931,7 +947,23 @@ function MatrixKanbanViewContent({
       </div>
 
       {/* Grid de columnas Kanban */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+      <div className="relative flex-1 overflow-x-auto overflow-y-hidden p-6" ref={kanbanScrollRef}>
+        <button
+          type="button"
+          onClick={() => scrollKanban('left')}
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/90 border border-gray-200 shadow-sm hover:bg-white"
+          aria-label="Desplazar a la izquierda"
+        >
+          <ChevronLeft className="w-5 h-5 text-gray-600 mx-auto" />
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollKanban('right')}
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/90 border border-gray-200 shadow-sm hover:bg-white"
+          aria-label="Desplazar a la derecha"
+        >
+          <ChevronRight className="w-5 h-5 text-gray-600 mx-auto" />
+        </button>
         <div className="flex gap-4 h-full min-w-max">
           {columnasConFiltros.map((columna) => (
             <div key={columna.id} className="w-[280px] flex-shrink-0">
@@ -954,7 +986,10 @@ function MatrixKanbanViewContent({
                 alertSettings={alertSettings}
                 customFieldsSettings={customFieldsSettings}
                 getPrimaryAction={getPrimaryAction}
+                getSecondaryAction={getSecondaryAction}
                 onPrimaryAction={onPrimaryAction}
+                onEnviarRecordatorio={onEnviarRecordatorio}
+                slaHorasByStatus={slaHorasByStatus}
                 hideConversionAction={hideConversionAction}
                 onOpenAnalysis={() => {
                   const rate = conversionRates.get(columna.id);

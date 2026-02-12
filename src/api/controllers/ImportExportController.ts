@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { ImportExportService } from '../../infrastructure/import-export/ImportExportService';
 import { InMemoryPacienteRepository } from '../../infrastructure/database/repositories/PacienteRepository';
+import { PacienteEntity } from '../../core/entities/Paciente';
 import { InMemoryCitaRepository } from '../../infrastructure/database/repositories/CitaRepository';
 import { InMemoryAbonoRepository } from '../../infrastructure/database/repositories/AbonoRepository';
 import multer from 'multer';
@@ -38,25 +39,29 @@ export class ImportExportController {
       let pacientes = await this.pacienteRepository.obtenerTodos();
 
       if (sucursalId) {
-        pacientes = pacientes.filter(p => p.sucursalId === sucursalId);
+        const pExt = pacientes as Array<PacienteEntity & { sucursalId?: string }>;
+        pacientes = pExt.filter(p => p.sucursalId === sucursalId);
       }
 
       // Preparar datos para exportación
-      const datosExportar = pacientes.map(p => ({
-        ID: p.id,
-        'Nombre Completo': p.nombreCompleto,
-        Teléfono: p.telefono,
-        Email: p.email || '',
-        Género: p.genero || '',
-        'Fecha Nacimiento': p.fechaNacimiento ? new Date(p.fechaNacimiento).toISOString().split('T')[0] : '',
-        Dirección: p.direccion || '',
-        Ciudad: p.ciudad || '',
-        Estado: p.estado || '',
-        Origen: p.origen || '',
-        'Sucursal ID': p.sucursalId || '',
-        'Fecha Registro': new Date(p.fechaRegistro).toISOString().split('T')[0],
-        Notas: p.notas || ''
-      }));
+      const datosExportar = pacientes.map(p => {
+        const dir = [p.calle, p.colonia, p.ciudad].filter(Boolean).join(', ');
+        return {
+          ID: p.id,
+          'Nombre Completo': p.nombreCompleto,
+          Teléfono: p.telefono,
+          Email: p.email || '',
+          Género: p.sexo || '',
+          'Fecha Nacimiento': p.fechaNacimiento ? new Date(p.fechaNacimiento).toISOString().split('T')[0] : '',
+          Dirección: dir,
+          Ciudad: p.ciudad || '',
+          Estado: p.estado || '',
+          Origen: p.origenLead || '',
+          'Sucursal ID': (p as PacienteEntity & { sucursalId?: string }).sucursalId || '',
+          'Fecha Registro': new Date(p.fechaRegistro).toISOString().split('T')[0],
+          Notas: p.observaciones || ''
+        };
+      });
 
       if (formato === 'excel') {
         const buffer = this.importExportService.exportarExcel(datosExportar, 'Pacientes');
@@ -72,7 +77,7 @@ export class ImportExportController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al exportar pacientes',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -131,7 +136,7 @@ export class ImportExportController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al importar pacientes',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -158,7 +163,7 @@ export class ImportExportController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al generar plantilla',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -195,7 +200,7 @@ export class ImportExportController {
         Especialidad: c.especialidad || '',
         'Médico': c.medicoAsignado || '',
         Estado: c.estado,
-        'Tipo Cita': c.tipoCita || '',
+        'Tipo Cita': c.tipoConsulta || '',
         'Sucursal ID': c.sucursalId || '',
         Notas: c.notas || ''
       }));
@@ -214,7 +219,7 @@ export class ImportExportController {
     } catch (error: any) {
       res.status(500).json({
         error: 'Error al exportar citas',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };

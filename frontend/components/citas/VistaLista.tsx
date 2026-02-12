@@ -25,74 +25,43 @@ import { NotasInline } from './NotasInline';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+
 interface VistaListaProps {
   citas: Cita[];
+  total: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
   onSelectCita: (cita: Cita) => void;
   onUpdateNota?: (citaId: string, nota: string) => void;
   searchQuery?: string;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSortChange: (field: SortField) => void;
+  filterEstado: string;
+  onFilterEstadoChange: (estado: string) => void;
 }
 
 type SortField = 'fecha' | 'paciente' | 'doctor' | 'estado';
 type SortDirection = 'asc' | 'desc';
 
-export function VistaLista({ citas, onSelectCita, onUpdateNota, searchQuery = '' }: VistaListaProps) {
-  const [sortField, setSortField] = useState<SortField>('fecha');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+export function VistaLista({
+  citas,
+  total,
+  page,
+  pageSize,
+  onPageChange,
+  onSelectCita,
+  onUpdateNota,
+  searchQuery = '',
+  sortField,
+  sortDirection,
+  onSortChange,
+  filterEstado,
+  onFilterEstadoChange,
+}: VistaListaProps) {
   const [expandedCita, setExpandedCita] = useState<string | null>(null);
-  const [filterEstado, setFilterEstado] = useState<string>('all');
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const citasFiltradas = useMemo(() => {
-    let filtered = citas;
-
-    // Filtrar por estado
-    if (filterEstado !== 'all') {
-      filtered = filtered.filter(c => c.estado === filterEstado);
-    }
-
-    // Filtrar por búsqueda
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(c =>
-        c.pacienteNombre?.toLowerCase().includes(query) ||
-        (c.doctor || c.medicoAsignado || '').toLowerCase().includes(query) ||
-        c.especialidad.toLowerCase().includes(query) ||
-        (c.sucursal || c.sucursalNombre || '').toLowerCase().includes(query)
-      );
-    }
-
-    // Ordenar
-    filtered.sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortField) {
-        case 'fecha':
-          comparison = new Date(a.fecha || a.fechaCita).getTime() - new Date(b.fecha || b.fechaCita).getTime();
-          break;
-        case 'paciente':
-          comparison = (a.pacienteNombre || '').localeCompare(b.pacienteNombre || '');
-          break;
-        case 'doctor':
-          comparison = (a.doctor || a.medicoAsignado || '').localeCompare(b.doctor || b.medicoAsignado || '');
-          break;
-        case 'estado':
-          comparison = a.estado.localeCompare(b.estado);
-          break;
-      }
-
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-
-    return filtered;
-  }, [citas, filterEstado, searchQuery, sortField, sortDirection]);
 
   const getEstadoConfig = (estado: string) => {
     const configs: Record<string, { color: string; bg: string; icon: any; label: string }> = {
@@ -125,7 +94,7 @@ export function VistaLista({ citas, onSelectCita, onUpdateNota, searchQuery = ''
 
   const SortButton = ({ field, label }: { field: SortField; label: string }) => (
     <button
-      onClick={() => handleSort(field)}
+      onClick={() => onSortChange(field)}
       className="flex items-center gap-1 hover:text-blue-600 transition-colors"
     >
       {label}
@@ -145,7 +114,7 @@ export function VistaLista({ citas, onSelectCita, onUpdateNota, searchQuery = ''
               <label className="text-sm font-medium text-gray-700">Estado:</label>
               <select
                 value={filterEstado}
-                onChange={(e) => setFilterEstado(e.target.value)}
+                onChange={(e) => onFilterEstadoChange(e.target.value)}
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               >
                 <option value="all">Todos</option>
@@ -164,7 +133,7 @@ export function VistaLista({ citas, onSelectCita, onUpdateNota, searchQuery = ''
           </div>
           
           <div className="text-sm text-gray-600">
-            <span className="font-semibold text-gray-800">{citasFiltradas.length}</span> cita{citasFiltradas.length !== 1 ? 's' : ''}
+            <span className="font-semibold text-gray-800">{total}</span> cita{total !== 1 ? 's' : ''}
           </div>
         </div>
       </div>
@@ -190,13 +159,13 @@ export function VistaLista({ citas, onSelectCita, onUpdateNota, searchQuery = ''
 
       {/* Lista de citas */}
       <div className="space-y-2">
-        {citasFiltradas.length === 0 ? (
+        {citas.length === 0 ? (
           <div className="bg-white rounded-xl border-2 border-gray-200 p-12 text-center">
             <Calendar className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p className="text-gray-500">No se encontraron citas</p>
           </div>
         ) : (
-          citasFiltradas.map((cita) => {
+          citas.map((cita) => {
             const estadoConfig = getEstadoConfig(cita.estado);
             const Icon = estadoConfig.icon;
             const isExpanded = expandedCita === cita.id;
@@ -347,6 +316,27 @@ export function VistaLista({ citas, onSelectCita, onUpdateNota, searchQuery = ''
             );
           })
         )}
+      </div>
+
+      {/* Controles de paginación */}
+      <div className="flex justify-center items-center gap-2 mt-4">
+        <button
+          className="px-3 py-1 rounded border bg-white text-gray-700 disabled:opacity-50"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+        >
+          Anterior
+        </button>
+        <span className="text-sm font-medium">
+          Página {page} de {Math.ceil(total / pageSize)}
+        </span>
+        <button
+          className="px-3 py-1 rounded border bg-white text-gray-700 disabled:opacity-50"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= Math.ceil(total / pageSize)}
+        >
+          Siguiente
+        </button>
       </div>
     </div>
   );

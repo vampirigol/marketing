@@ -100,11 +100,11 @@ export class WhatsAppService {
         messageId: response.data.messages[0].id
       };
     } catch (error: unknown) {
-      console.error('❌ Error enviando WhatsApp:', error.response?.data || error.message);
-      return {
-        success: false,
-        error: error.response?.data?.error?.message || error.message
-      };
+      const errMsg = axios.isAxiosError(error)
+        ? (error.response?.data as { error?: { message?: string } })?.error?.message || error.message
+        : error instanceof Error ? error.message : 'Error desconocido';
+      console.error('❌ Error enviando WhatsApp:', errMsg);
+      return { success: false, error: errMsg };
     }
   }
 
@@ -151,11 +151,11 @@ export class WhatsAppService {
         messageId: response.data.messages[0].id
       };
     } catch (error: unknown) {
-      console.error('❌ Error enviando plantilla WhatsApp:', error.response?.data || error.message);
-      return {
-        success: false,
-        error: error.response?.data?.error?.message || error.message
-      };
+      const errMsg = axios.isAxiosError(error)
+        ? (error.response?.data as { error?: { message?: string } })?.error?.message || error.message
+        : error instanceof Error ? error.message : 'Error desconocido';
+      console.error('❌ Error enviando plantilla WhatsApp:', errMsg);
+      return { success: false, error: errMsg };
     }
   }
 

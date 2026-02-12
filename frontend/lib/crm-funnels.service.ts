@@ -1,7 +1,7 @@
 import { Lead, LeadStatus, CanalType, KanbanColumnConfig } from '@/types/matrix';
-import { obtenerConversacionesSimuladas, generarLeadsDesdeConversaciones } from '@/lib/matrix.service';
 import { getServiciosPorSucursal } from '@/lib/doctores-data';
 import { api } from '@/lib/api';
+import { obtenerLeadsCitasLocales } from '@/lib/citas-leads.service';
 
 export type CrmFunnelType = 'sucursal' | 'contact-center';
 
@@ -32,18 +32,47 @@ export interface CrmFunnelConfig {
   };
 }
 
+// Etapas unificadas: mismo embudo para Contact Center y Keila IA Kanban
 const ETAPAS_BASE: CrmFunnelStage[] = [
   { id: 'new', nombre: 'Lead', objetivo: 'Contacto inicial', slaHoras: 2 },
   { id: 'reviewing', nombre: 'Prospecto', objetivo: 'Validar interés real', slaHoras: 6 },
   { id: 'in-progress', nombre: 'Cita pendiente', objetivo: 'Agendar fecha y hora', slaHoras: 12 },
+  { id: 'agendados-mobile', nombre: 'Agendados Mobile', objetivo: 'Citas creadas desde la app', slaHoras: 12 },
+  { id: 'citas-locales', nombre: 'Citas Locales', objetivo: 'Agendadas en Citas, CRM o Doctores', slaHoras: 12 },
   { id: 'open', nombre: 'Confirmada', objetivo: 'Confirmación y recordatorios', slaHoras: 24 },
   { id: 'qualified', nombre: 'Cierre', objetivo: 'Atendida / No show / Perdido', slaHoras: 24 },
 ];
+
+/** SLA por etapa (horas) para alertas en tarjeta. */
+export const SLA_HORAS_BY_STATUS: Partial<Record<LeadStatus, number>> = Object.fromEntries(
+  ETAPAS_BASE.map((e) => [e.id, e.slaHoras])
+) as Partial<Record<LeadStatus, number>>;
+
+/**
+ * Calcula estado de SLA para un lead (tiempo en etapa vs slaHoras).
+ * @returns 'ok' | 'warning' (< 25% tiempo restante) | 'exceeded' (SLA superado)
+ */
+export function getSlaAlertaLead(
+  lead: Lead,
+  slaHorasByStatus: Partial<Record<LeadStatus, number>>
+): 'ok' | 'warning' | 'exceeded' | null {
+  const slaHoras = slaHorasByStatus[lead.status];
+  if (slaHoras == null || slaHoras <= 0) return null;
+  const desde = lead.fechaUltimoEstado || lead.fechaActualizacion || lead.fechaCreacion;
+  const desdeDate = desde instanceof Date ? desde : new Date(desde);
+  const horasEnEtapa = (Date.now() - desdeDate.getTime()) / (1000 * 60 * 60);
+  if (horasEnEtapa >= slaHoras) return 'exceeded';
+  const porcentajeRestante = 1 - horasEnEtapa / slaHoras;
+  if (porcentajeRestante <= 0.25) return 'warning';
+  return 'ok';
+}
 
 export const CRM_COLUMN_CONFIGS: KanbanColumnConfig[] = [
   { id: 'new', titulo: 'Lead', color: 'purple', icono: '🧭', enabled: true },
   { id: 'reviewing', titulo: 'Prospecto', color: 'orange', icono: '🧑‍💼', enabled: true },
   { id: 'in-progress', titulo: 'Cita pendiente', color: 'indigo', icono: '📅', enabled: true },
+  { id: 'agendados-mobile', titulo: 'Agendados Mobile', color: 'blue', icono: '📱', enabled: true },
+  { id: 'citas-locales', titulo: 'Citas Locales', color: 'teal', icono: '📋', enabled: true },
   { id: 'open', titulo: 'Confirmada', color: 'blue', icono: '✅', enabled: true },
   { id: 'qualified', titulo: 'Cierre', color: 'green', icono: '🏁', enabled: true },
 ];
@@ -77,19 +106,31 @@ const CAMPANAS = [
   'Plan Salud Integral',
 ];
 
-const STATUS_CYCLE: LeadStatus[] = ['new', 'reviewing', 'in-progress', 'open', 'qualified'];
+const STATUS_CYCLE: LeadStatus[] = ['new', 'reviewing', 'in-progress', 'agendados-mobile', 'citas-locales', 'open', 'qualified'];
 
 const STORAGE_PREFIX = 'crm.kanban.';
 
-const CRM_ACCIONES_POR_STATUS: Record<LeadStatus, { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' }> = {
-  new: { label: 'Confirmar', actionId: 'confirmar' },
-  reviewing: { label: 'Confirmar', actionId: 'confirmar' },
-  'in-progress': { label: 'Confirmar', actionId: 'confirmar' },
-  open: { label: 'Marcar llegada', actionId: 'llegada' },
+export type CrmActionId = 'confirmar' | 'reagendar' | 'llegada' | 'no-asistencia';
+
+const CRM_ACCIONES_POR_STATUS: Record<LeadStatus, { label: string; actionId: CrmActionId }> = {
+  new: { label: 'Confirmar cita', actionId: 'confirmar' },
+  reviewing: { label: 'Confirmar cita', actionId: 'confirmar' },
+  'in-progress': { label: 'Confirmar cita', actionId: 'confirmar' },
+  'agendados-mobile': { label: 'Confirmar cita', actionId: 'confirmar' },
+  'citas-locales': { label: 'Asistencia', actionId: 'llegada' },
+  open: { label: 'Asistencia', actionId: 'llegada' },
   qualified: { label: 'Reagendar', actionId: 'reagendar' },
   rejected: { label: 'Reagendar', actionId: 'reagendar' },
-  'open-deal': { label: 'Confirmar', actionId: 'confirmar' },
+  'open-deal': { label: 'Confirmar cita', actionId: 'confirmar' },
 };
+
+/** Acción secundaria "No asistencia" para tarjetas en Citas Locales / Confirmada (sucursal). */
+export function obtenerAccionNoAsistencia(lead: Lead): { label: string; actionId: CrmActionId } | null {
+  if (lead.status === 'citas-locales' || lead.status === 'open') {
+    return { label: 'No asistencia', actionId: 'no-asistencia' };
+  }
+  return null;
+}
 
 function getStorageKey(embudoId: string): string {
   return `${STORAGE_PREFIX}${embudoId}`;
@@ -162,20 +203,24 @@ export async function persistirMovimientoLead(
   }
 
   const resultado = extraCustomFields?.CRM_Resultado as string | undefined;
-  try {
-    const resp = await api.put(`/crm/leads/${leadId}`, { status: nuevoStatus, resultado });
-    const updatedLead = resp.data?.lead as Lead | undefined;
-    if (updatedLead) {
-      return hydrateLeadDates(updatedLead);
+  const esLeadCitaLocal = leadId.startsWith('cita-');
+
+  if (!esLeadCitaLocal) {
+    try {
+      const resp = await api.put(`/crm/leads/${leadId}`, { status: nuevoStatus, resultado });
+      const updatedLead = resp.data?.lead as Lead | undefined;
+      if (updatedLead) {
+        return hydrateLeadDates(updatedLead);
+      }
+    } catch {
+      // Fallback a almacenamiento local si el backend no está disponible
     }
-  } catch {
-    // Fallback a almacenamiento local si el backend no está disponible
   }
 
   return localUpdated?.find((lead) => lead.id === leadId) ?? null;
 }
 
-export function obtenerAccionPrimariaLead(lead: Lead): { label: string; actionId: 'confirmar' | 'reagendar' | 'llegada' } | null {
+export function obtenerAccionPrimariaLead(lead: Lead): { label: string; actionId: CrmActionId } | null {
   return CRM_ACCIONES_POR_STATUS[lead.status] ?? null;
 }
 
@@ -191,6 +236,8 @@ const CRM_LABELS_BY_STATUS: Record<LeadStatus, string> = {
   new: 'Lead',
   reviewing: 'Prospecto',
   'in-progress': 'Cita pendiente',
+  'agendados-mobile': 'Agendados Mobile',
+  'citas-locales': 'Citas Locales',
   open: 'Confirmada',
   qualified: 'Cierre',
   rejected: 'Perdido',
@@ -365,32 +412,13 @@ export async function obtenerLeadsParaEmbudo(embudo: CrmFunnelConfig): Promise<L
     }));
   }
 
-  const persistidos = cargarLeadsPersistidos(embudo.id);
-  if (persistidos) return persistidos;
+  const citasLocales = await obtenerLeadsCitasLocales({
+    sucursalNombre: embudo.sucursal,
+    fechaInicio: new Date(),
+    fechaFin: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+  });
 
-  if (embudo.tipo === 'contact-center') {
-    const conversaciones = await obtenerConversacionesSimuladas();
-    const leads = generarLeadsDesdeConversaciones(conversaciones);
-    const normalizados = leads.map((lead, index) => {
-      const status = STATUS_CYCLE[index % STATUS_CYCLE.length];
-      return aplicarCamposCrm({
-        ...lead,
-        status,
-        etiquetas: Array.from(new Set([...(lead.etiquetas || []), 'Contact Center'])),
-        customFields: {
-          ...(lead.customFields || {}),
-          Sucursal: 'Contact Center',
-          Campana: 'Keila IA',
-        },
-      });
-    });
-    guardarLeadsPersistidos(embudo.id, normalizados);
-    return normalizados;
-  }
-
-  const generados = generarLeadsSucursal(embudo.sucursal || 'General', 28);
-  guardarLeadsPersistidos(embudo.id, generados);
-  return generados;
+  return citasLocales;
 }
 
 export function generarLeadsSucursal(sucursal: string, total: number): Lead[] {

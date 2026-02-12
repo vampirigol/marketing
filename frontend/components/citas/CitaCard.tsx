@@ -100,11 +100,11 @@ export function CitaCard({ cita, onClick, vista = 'lista', onQuickConfirm, onQui
               <CheckCheck className="w-4 h-4 text-green-600 group-hover/btn:scale-110 transition-transform" />
             </button>
           )}
-          {onQuickCall && (
+          {onQuickCall && cita.pacienteTelefono && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onQuickCall(cita.pacienteTelefono);
+                onQuickCall(cita.pacienteTelefono!);
               }}
               className="p-1.5 hover:bg-blue-50 rounded-md transition-colors group/btn"
               title="Llamar"
@@ -112,11 +112,11 @@ export function CitaCard({ cita, onClick, vista = 'lista', onQuickConfirm, onQui
               <Phone className="w-4 h-4 text-blue-600 group-hover/btn:scale-110 transition-transform" />
             </button>
           )}
-          {onQuickWhatsApp && (
+          {onQuickWhatsApp && cita.pacienteTelefono && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onQuickWhatsApp(cita.pacienteTelefono);
+                onQuickWhatsApp(cita.pacienteTelefono!);
               }}
               className="p-1.5 hover:bg-green-50 rounded-md transition-colors group/btn"
               title="WhatsApp"

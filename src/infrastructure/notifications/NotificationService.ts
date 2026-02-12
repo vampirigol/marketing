@@ -454,10 +454,11 @@ export class NotificationService {
       };
 
     } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : 'Error desconocido';
       return {
         enviado: false,
         canal,
-        error: errorMessage
+        error: errMsg
       };
     }
   }

@@ -190,8 +190,8 @@ DATABASE_URL=postgresql://usuario:password@localhost:5432/rca_crm
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=rca_crm
-DB_USER=usuario
-DB_PASSWORD=tu_password_seguro
+DB_USER=postgres
+DB_PASSWORD=postgres
 
 # ===============================================
 # CONFIGURACIÓN DEL SERVIDOR

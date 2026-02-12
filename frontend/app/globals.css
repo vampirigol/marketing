@@ -2,127 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-poppins: 'Poppins', sans-serif;
-  }
-
-  body {
-    @apply bg-gradient-to-br from-gray-50 via-gray-50 to-blue-50 text-gray-900 antialiased;
-  }
-
-  * {
-    @apply border-gray-200;
-  }
+/* Modo oscuro */
+.dark {
+  color-scheme: dark;
 }
 
-@layer components {
-  /* Botones */
-  .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  .btn-primary {
-    @apply btn bg-primary text-white hover:bg-primary-dark focus:ring-primary;
-  }
-
-  .btn-secondary {
-    @apply btn bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400;
-  }
-
-  .btn-success {
-    @apply btn bg-success text-white hover:bg-success-dark focus:ring-success;
-  }
-
-  .btn-danger {
-    @apply btn bg-danger text-white hover:bg-danger-dark focus:ring-danger;
-  }
-
-  .btn-sm {
-    @apply px-3 py-1.5 text-sm;
-  }
-
-  .btn-lg {
-    @apply px-6 py-3 text-lg;
-  }
-
-  /* Cards */
-  .card {
-    @apply bg-white rounded-xl shadow-sm p-6 border border-gray-100 backdrop-blur-sm;
-  }
-
-  .card-hover {
-    @apply card transition-all duration-300 hover:shadow-xl hover:scale-[1.02] hover:-translate-y-1 cursor-pointer;
-  }
-
-  /* Inputs */
-  .input {
-    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-base disabled:bg-gray-100 disabled:cursor-not-allowed;
-  }
-
-  .input-error {
-    @apply input border-danger focus:ring-danger;
-  }
-
-  /* Badges */
-  .badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold shadow-sm;
-  }
-
-  .badge-primary {
-    @apply badge bg-primary-light text-primary-600;
-  }
-
-  .badge-success {
-    @apply badge bg-success-light text-success-dark;
-  }
-
-  .badge-warning {
-    @apply badge bg-warning-light text-warning-dark;
-  }
-
-  .badge-danger {
-    @apply badge bg-danger-light text-danger-dark;
-  }
-
-  .badge-promotion {
-    @apply badge bg-promotion-light text-promotion-dark;
-  }
-
-  /* Estados de Cita */
-  .status-agendada {
-    @apply badge bg-info-light text-info-dark;
-  }
-
-  .status-confirmada {
-    @apply badge bg-success-light text-success-dark;
-  }
-
-  .status-en-consulta {
-    @apply badge bg-warning-light text-warning-dark;
-  }
-
-  .status-atendida {
-    @apply badge bg-success-light text-success-dark;
-  }
-
-  .status-cancelada {
-    @apply badge bg-danger-light text-danger-dark;
-  }
-
-  .status-no-asistio {
-    @apply badge bg-danger-light text-danger-dark;
-  }
+.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
 }
 
-@layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+/* Alto contraste */
+.high-contrast {
+  --tw-contrast: 1.5;
+  filter: contrast(1.5);
+}
 
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
+.high-contrast * {
+  font-weight: 600 !important;
+}
+
+.high-contrast .border {
+  border-width: 2px !important;
+}
+
+/* Clases de tema oscuro personalizadas */
+.dark .text-slate-900 {
+  color: #f1f5f9;
+}
+
+.dark .text-slate-700 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-500 {
+  color: #94a3b8;
+}
+
+.dark .text-slate-400 {
+  color: #64748b;
+}
+
+.dark .bg-white {
+  background-color: #1e293b;
+}
+
+.dark .bg-slate-50 {
+  background-color: #0f172a;
+}
+
+.dark .bg-slate-100 {
+  background-color: #334155;
+}
+
+.dark .border-slate-200 {
+  border-color: #475569;
+}
+
+.dark .border-slate-300 {
+  border-color: #64748b;
+}
+
+/* Elementos interactivos en modo oscuro */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
+}
+
+.dark button.bg-blue-600 {
+  background-color: #2563eb;
+}
+
+.dark button.bg-blue-600:hover {
+  background-color: #1d4ed8;
+}
+
+/* Animación barra de progreso del Toast */
+@keyframes toast-progress {
+  from { width: 100%; }
+  to { width: 0%; }
 }

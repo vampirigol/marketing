@@ -15,6 +15,8 @@ interface AgendarCitaModalProps {
   onClose: () => void;
   pacienteId?: string;
   pacienteNombre?: string;
+  /** Si se proporciona, se llama al crear la cita (p. ej. para vincular lista de espera) */
+  onCitaCreada?: (cita: { id: string; pacienteId?: string }) => void;
 }
 
 type Paso = 'catalogo' | 'disponibilidad' | 'datosPaciente' | 'confirmacion';
@@ -55,7 +57,8 @@ export function AgendarCitaModal({
   isOpen,
   onClose,
   pacienteId,
-  pacienteNombre
+  pacienteNombre,
+  onCitaCreada,
 }: AgendarCitaModalProps) {
   const [paso, setPaso] = useState<Paso>('catalogo');
   const [datosCatalogo, setDatosCatalogo] = useState<DatosCatalogo | null>(null);
@@ -143,7 +146,8 @@ export function AgendarCitaModal({
       };
 
       const cita = await citasService.crear(payload);
-      
+      onCitaCreada?.({ id: cita.id, pacienteId: cita.pacienteId });
+
       // Preparar datos para el modal de éxito
       const dataSuccess = {
         pacienteNombre: nombreCompleto,
@@ -162,16 +166,20 @@ export function AgendarCitaModal({
       setSuccessData(dataSuccess);
       setShowSuccess(true);
       
-      // Emitir evento para refrescar el calendario si existe
+      // Emitir evento y BroadcastChannel para refrescar CRM y agenda del doctor
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('citaAgendada', { 
-          detail: {
-            ...cita,
-            sucursalNombre: datosCatalogo!.sucursalNombre,
-            doctorNombre: datosCatalogo!.doctorNombre,
-            servicioNombre: datosCatalogo!.servicioNombre
+        const detail = {
+          ...cita,
+          sucursalNombre: datosCatalogo!.sucursalNombre,
+          doctorNombre: datosCatalogo!.doctorNombre,
+          servicioNombre: datosCatalogo!.servicioNombre,
+        };
+        window.dispatchEvent(new CustomEvent('citaAgendada', { detail }));
+        try {
+          if (typeof BroadcastChannel !== 'undefined') {
+            new BroadcastChannel('crm_citas').postMessage({ type: 'citaAgendada', detail });
           }
-        }));
+        } catch { /* BroadcastChannel no soportado */ }
       }
       
     } catch (error) {
@@ -254,6 +262,7 @@ export function AgendarCitaModal({
               <DisponibilidadForm
                 sucursalId={datosCatalogo.sucursalId}
                 doctorId={datosCatalogo.doctorId}
+                doctorNombre={datosCatalogo.doctorNombre}
                 onDateSelect={handleDisponibilidadComplete}
                 onCancel={handleCerrar}
               />

@@ -8,6 +8,7 @@ export const DEFAULT_COLUMN_CONFIGS: KanbanColumnConfig[] = [
   { id: 'open', titulo: 'Abiertos', color: 'blue', icono: '📂', enabled: true },
   { id: 'in-progress', titulo: 'En Progreso', color: 'indigo', icono: '⚡', enabled: true },
   { id: 'open-deal', titulo: 'Negociación', color: 'yellow', icono: '💰', enabled: true },
+  { id: 'citas-locales', titulo: 'Citas Locales', color: 'teal', icono: '📋', enabled: true },
 ];
 
 export const DEFAULT_BOARD_SETTINGS: KanbanBoardSettings = {

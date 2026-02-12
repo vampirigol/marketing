@@ -54,8 +54,8 @@ export interface SolicitudContacto {
   notas?: string;
   resolucion?: string;
   
-  // Metadata
-  origen: 'Web' | 'WhatsApp' | 'Facebook' | 'Instagram' | 'Telefono';
+  // Metadata (unificado con canales para reportes y SLA)
+  origen: 'Web' | 'WhatsApp' | 'Facebook' | 'Instagram' | 'Telefono' | 'TikTok' | 'YouTube' | 'Email';
   creadoPor: string;
   fechaCreacion: Date;
   fechaAsignacion?: Date;
@@ -65,6 +65,11 @@ export interface SolicitudContacto {
   // CRM
   crmStatus?: string;
   crmResultado?: string;
+
+  /** Vinculación con cita al convertir lead → paciente/cita. Si no es null, el lead ya no se muestra en Contact Center. */
+  citaId?: string;
+  /** Número de afiliado asignado al crear el lead (RCA-YYYY-NNNNN). */
+  noAfiliacion?: string;
 }
 
 /**
@@ -90,7 +95,7 @@ export class SolicitudContactoEntity implements SolicitudContacto {
   ultimoIntento?: Date;
   notas?: string;
   resolucion?: string;
-  origen: 'Web' | 'WhatsApp' | 'Facebook' | 'Instagram' | 'Telefono';
+  origen: 'Web' | 'WhatsApp' | 'Facebook' | 'Instagram' | 'Telefono' | 'TikTok' | 'YouTube' | 'Email';
   creadoPor: string;
   fechaCreacion: Date;
   fechaAsignacion?: Date;
@@ -98,6 +103,8 @@ export class SolicitudContactoEntity implements SolicitudContacto {
   ultimaActualizacion: Date;
   crmStatus?: string;
   crmResultado?: string;
+  citaId?: string;
+  noAfiliacion?: string;
 
   constructor(data: SolicitudContacto) {
     this.id = data.id;
@@ -127,6 +134,8 @@ export class SolicitudContactoEntity implements SolicitudContacto {
     this.ultimaActualizacion = data.ultimaActualizacion;
     this.crmStatus = data.crmStatus;
     this.crmResultado = data.crmResultado;
+    this.citaId = data.citaId;
+    this.noAfiliacion = data.noAfiliacion;
   }
 
   /**

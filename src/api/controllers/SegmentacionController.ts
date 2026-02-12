@@ -4,7 +4,12 @@
  */
 
 import { Request, Response } from 'express';
-import { SegmentarPacientesUseCase } from '../../core/use-cases/SegmentarPacientes';
+import {
+  SegmentarPacientesUseCase,
+  SegmentoPaciente,
+  ICitaRepository,
+  IAbonoRepository,
+} from '../../core/use-cases/SegmentarPacientes';
 import { InMemoryPacienteRepository } from '../../infrastructure/database/repositories/PacienteRepository';
 import { InMemoryCitaRepository } from '../../infrastructure/database/repositories/CitaRepository';
 import { InMemoryAbonoRepository } from '../../infrastructure/database/repositories/AbonoRepository';
@@ -15,12 +20,12 @@ export class SegmentacionController {
 
   constructor() {
     this.pacienteRepository = new InMemoryPacienteRepository();
-    const citaRepository = new InMemoryCitaRepository();
-    const abonoRepository = new InMemoryAbonoRepository();
-    
+    const citaRepository = new InMemoryCitaRepository() as unknown as ICitaRepository;
+    const abonoRepository = new InMemoryAbonoRepository() as unknown as IAbonoRepository;
+
     this.segmentarUseCase = new SegmentarPacientesUseCase(
-      citaRepository as any,
-      abonoRepository as any
+      citaRepository,
+      abonoRepository
     );
   }
 
@@ -36,16 +41,16 @@ export class SegmentacionController {
       const pacientes = await this.pacienteRepository.obtenerTodos();
       
       const pacientesFiltrados = sucursalId
-        ? pacientes.filter(p => p.sucursalId === sucursalId)
+        ? pacientes.filter(p => (p as { sucursalId?: string }).sucursalId === sucursalId)
         : pacientes;
 
       const estadisticas = await this.segmentarUseCase.obtenerEstadisticas(pacientesFiltrados);
 
       res.json(estadisticas);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al obtener estadísticas de segmentación',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -70,12 +75,12 @@ export class SegmentacionController {
 
       const pacientes = await this.pacienteRepository.obtenerTodos();
       const pacientesFiltrados = sucursalId
-        ? pacientes.filter(p => p.sucursalId === sucursalId)
+        ? pacientes.filter(p => (p as { sucursalId?: string }).sucursalId === sucursalId)
         : pacientes;
 
       const resultado = await this.segmentarUseCase.filtrarPorSegmento(
         pacientesFiltrados,
-        tipo as any
+        tipo as SegmentoPaciente
       );
 
       res.json({
@@ -83,10 +88,10 @@ export class SegmentacionController {
         total: resultado.length,
         pacientes: resultado
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al filtrar por segmento',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -102,7 +107,7 @@ export class SegmentacionController {
 
       const pacientes = await this.pacienteRepository.obtenerTodos();
       const pacientesFiltrados = sucursalId
-        ? pacientes.filter(p => p.sucursalId === sucursalId)
+        ? pacientes.filter(p => (p as { sucursalId?: string }).sucursalId === sucursalId)
         : pacientes;
 
       const resultado = await this.segmentarUseCase.obtenerPacientesAltoValor(
@@ -116,10 +121,10 @@ export class SegmentacionController {
         valorTotal: resultado.reduce((sum, p) => sum + (p.valorVida || 0), 0),
         pacientes: resultado
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al obtener pacientes de alto valor',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -135,7 +140,7 @@ export class SegmentacionController {
 
       const pacientes = await this.pacienteRepository.obtenerTodos();
       const pacientesFiltrados = sucursalId
-        ? pacientes.filter(p => p.sucursalId === sucursalId)
+        ? pacientes.filter(p => (p as { sucursalId?: string }).sucursalId === sucursalId)
         : pacientes;
 
       const resultado = await this.segmentarUseCase.obtenerPacientesRiesgoAbandono(
@@ -148,10 +153,10 @@ export class SegmentacionController {
         total: resultado.length,
         pacientes: resultado
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al obtener pacientes en riesgo',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -167,7 +172,7 @@ export class SegmentacionController {
 
       const pacientes = await this.pacienteRepository.obtenerTodos();
       const pacientesFiltrados = sucursalId
-        ? pacientes.filter(p => p.sucursalId === sucursalId)
+        ? pacientes.filter(p => (p as { sucursalId?: string }).sucursalId === sucursalId)
         : pacientes;
 
       const resultado = await this.segmentarUseCase.obtenerLeadsFrios(
@@ -180,10 +185,10 @@ export class SegmentacionController {
         total: resultado.length,
         pacientes: resultado
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al obtener leads fríos',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -205,10 +210,10 @@ export class SegmentacionController {
       const pacienteSegmentado = await this.segmentarUseCase.segmentarPaciente(paciente);
 
       res.json(pacienteSegmentado);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al segmentar paciente',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };

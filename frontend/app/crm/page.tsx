@@ -3,24 +3,35 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { MatrixKanbanView } from '@/components/matrix/MatrixKanbanView';
+import { NuevaCitaCrmModal } from '@/components/crm/NuevaCitaCrmModal';
 import { SUCURSALES } from '@/lib/doctores-data';
 import { Lead, LeadStatus } from '@/types/matrix';
 import {
   CRM_COLUMN_CONFIGS,
   crearEmbudoConfigs,
   obtenerAccionPrimariaLead,
+  obtenerAccionNoAsistencia,
   obtenerLeadsParaEmbudo,
   paginarLeads,
   persistirMovimientoLead,
+  SLA_HORAS_BY_STATUS,
 } from '@/lib/crm-funnels.service';
+import type { CrmActionId } from '@/lib/crm-funnels.service';
+import { citasService } from '@/lib/citas.service';
 import Link from 'next/link';
-import { Filter, Target, UserCheck, UserX, Settings } from 'lucide-react';
+import { Filter, Target, UserCheck, UserX, Settings, CalendarPlus, Search, X } from 'lucide-react';
+import type { CanalType } from '@/types/matrix';
 
 export default function CrmPage() {
   const embudos = useMemo(() => crearEmbudoConfigs(SUCURSALES), []);
   const [embudoActivoId, setEmbudoActivoId] = useState(embudos[0]?.id || 'contact-center');
   const [leadsActuales, setLeadsActuales] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [nuevaCitaOpen, setNuevaCitaOpen] = useState(false);
+  const [filtroBusqueda, setFiltroBusqueda] = useState('');
+  const [filtroCanal, setFiltroCanal] = useState<'todos' | CanalType>('todos');
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState('');
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState('');
 
   const embudoActivo = useMemo(
     () => embudos.find((embudo) => embudo.id === embudoActivoId) || embudos[0],
@@ -50,23 +61,56 @@ export default function CrmPage() {
     localStorage.setItem('crmEmbudoActual', id);
   };
 
+  const leadsFiltrados = useMemo(() => {
+    let list = leadsActuales;
+    const q = filtroBusqueda.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (l) =>
+          (l.nombre && l.nombre.toLowerCase().includes(q)) ||
+          (l.telefono && l.telefono.replace(/\D/g, '').includes(q.replace(/\D/g, ''))) ||
+          (l.nombreContacto && l.nombreContacto.toLowerCase().includes(q))
+      );
+    }
+    if (filtroCanal !== 'todos') {
+      list = list.filter((l) => l.canal === filtroCanal);
+    }
+    if (filtroFechaDesde) {
+      const desde = new Date(filtroFechaDesde);
+      desde.setHours(0, 0, 0, 0);
+      list = list.filter((l) => {
+        const d = l.fechaCreacion instanceof Date ? l.fechaCreacion : new Date(l.fechaCreacion);
+        return d >= desde;
+      });
+    }
+    if (filtroFechaHasta) {
+      const hasta = new Date(filtroFechaHasta);
+      hasta.setHours(23, 59, 59, 999);
+      list = list.filter((l) => {
+        const d = l.fechaCreacion instanceof Date ? l.fechaCreacion : new Date(l.fechaCreacion);
+        return d <= hasta;
+      });
+    }
+    return list;
+  }, [leadsActuales, filtroBusqueda, filtroCanal, filtroFechaDesde, filtroFechaHasta]);
+
   const handleLoadMore = useCallback(
     async ({ status, page, limit }: { status: LeadStatus; page: number; limit: number }) => {
-      const { leads, total, hasMore } = paginarLeads(leadsActuales, status, page, limit);
+      const { leads, total, hasMore } = paginarLeads(leadsFiltrados, status, page, limit);
       return { leads, total, hasMore };
     },
-    [leadsActuales]
+    [leadsFiltrados]
   );
 
   const estadisticas = useMemo(() => {
-    const total = leadsActuales.length;
-    const confirmadas = leadsActuales.filter((lead) => lead.status === 'open').length;
-    const pendientes = leadsActuales.filter((lead) => lead.status === 'in-progress').length;
-    const cierres = leadsActuales.filter((lead) => lead.status === 'qualified').length;
-    const atendidas = leadsActuales.filter(
+    const total = leadsFiltrados.length;
+    const confirmadas = leadsFiltrados.filter((lead) => lead.status === 'open').length;
+    const pendientes = leadsFiltrados.filter((lead) => lead.status === 'in-progress').length;
+    const cierres = leadsFiltrados.filter((lead) => lead.status === 'qualified').length;
+    const atendidas = leadsFiltrados.filter(
       (lead) => lead.status === 'qualified' && lead.customFields?.CRM_Resultado === 'Atendida'
     ).length;
-    const noShow = leadsActuales.filter(
+    const noShow = leadsFiltrados.filter(
       (lead) => lead.status === 'qualified' && lead.customFields?.CRM_Resultado === 'No show'
     ).length;
     const confirmacionBase = confirmadas + pendientes;
@@ -86,7 +130,7 @@ export default function CrmPage() {
       asistenciaRate,
       noShowRate,
     };
-  }, [leadsActuales]);
+  }, [leadsFiltrados]);
 
   const handleMoveLead = useCallback(
     async (leadId: string, _fromStatus: LeadStatus, toStatus: LeadStatus) => {
@@ -101,10 +145,11 @@ export default function CrmPage() {
   );
 
   const handlePrimaryAction = useCallback(
-    async (lead: Lead, actionId: 'confirmar' | 'reagendar' | 'llegada') => {
+    async (lead: Lead, actionId: CrmActionId) => {
       if (!embudoActivo) return;
       let nuevoStatus: LeadStatus = lead.status;
       let resultado: string | undefined = lead.customFields?.CRM_Resultado as string | undefined;
+      const citaId = lead.customFields?.CitaId as string | undefined;
 
       if (actionId === 'confirmar') {
         nuevoStatus = 'open';
@@ -113,6 +158,24 @@ export default function CrmPage() {
       if (actionId === 'llegada') {
         nuevoStatus = 'qualified';
         resultado = 'Atendida';
+        if (citaId) {
+          try {
+            await citasService.marcarLlegada(citaId);
+          } catch {
+            // El lead se actualiza igual; la cita se puede marcar después en Citas
+          }
+        }
+      }
+      if (actionId === 'no-asistencia') {
+        nuevoStatus = 'qualified';
+        resultado = 'No show';
+        if (citaId) {
+          try {
+            await citasService.marcarNoAsistencia(citaId);
+          } catch {
+            // El lead se actualiza igual
+          }
+        }
       }
       if (actionId === 'reagendar') {
         nuevoStatus = 'in-progress';
@@ -153,6 +216,14 @@ export default function CrmPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setNuevaCitaOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
+              >
+                <CalendarPlus className="w-4 h-4" />
+                Nueva Cita
+              </button>
               <Link
                 href="/automatizaciones"
                 className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
@@ -219,7 +290,65 @@ export default function CrmPage() {
           )}
         </div>
 
-        <div className="px-6 py-2 bg-gray-50 border-b border-gray-200" />
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-xs">
+            <Search className="w-4 h-4 text-gray-500 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Nombre o teléfono..."
+              value={filtroBusqueda}
+              onChange={(e) => setFiltroBusqueda(e.target.value)}
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <select
+            value={filtroCanal}
+            onChange={(e) => setFiltroCanal(e.target.value as 'todos' | CanalType)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="todos">Todos los canales</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="facebook">Facebook</option>
+            <option value="instagram">Instagram</option>
+            <option value="tiktok">TikTok</option>
+            <option value="youtube">YouTube</option>
+            <option value="email">Email</option>
+            <option value="fan-page">Web / Fan page</option>
+          </select>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-600 whitespace-nowrap">Desde</label>
+            <input
+              type="date"
+              value={filtroFechaDesde}
+              onChange={(e) => setFiltroFechaDesde(e.target.value)}
+              className="rounded-lg border border-gray-300 px-2 py-2 text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-600 whitespace-nowrap">Hasta</label>
+            <input
+              type="date"
+              value={filtroFechaHasta}
+              onChange={(e) => setFiltroFechaHasta(e.target.value)}
+              className="rounded-lg border border-gray-300 px-2 py-2 text-sm"
+            />
+          </div>
+          {(filtroBusqueda || filtroCanal !== 'todos' || filtroFechaDesde || filtroFechaHasta) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroBusqueda('');
+                setFiltroCanal('todos');
+                setFiltroFechaDesde('');
+                setFiltroFechaHasta('');
+              }}
+              className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Limpiar
+            </button>
+          )}
+        </div>
 
         <div className="flex flex-col min-h-[640px]">
             {isLoading ? (
@@ -235,12 +364,26 @@ export default function CrmPage() {
                 boardSettingsKey="crm.kanbanBoardSettings"
                 initialStates={CRM_COLUMN_CONFIGS.map((col) => col.id)}
                 getPrimaryAction={obtenerAccionPrimariaLead}
+                getSecondaryAction={obtenerAccionNoAsistencia}
                 onPrimaryAction={handlePrimaryAction}
+                onEnviarRecordatorio={embudoActivo?.tipo === 'sucursal' ? async (citaId) => { await citasService.enviarRecordatorio(citaId); } : undefined}
+                slaHorasByStatus={SLA_HORAS_BY_STATUS}
                 onMoveLead={handleMoveLead}
               />
             )}
         </div>
       </div>
+
+      <NuevaCitaCrmModal
+        isOpen={nuevaCitaOpen}
+        onClose={() => setNuevaCitaOpen(false)}
+        onCitaCreada={() => {
+          setNuevaCitaOpen(false);
+          if (embudoActivo) {
+            obtenerLeadsParaEmbudo(embudoActivo).then(setLeadsActuales);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

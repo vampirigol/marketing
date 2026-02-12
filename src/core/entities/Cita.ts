@@ -37,11 +37,24 @@ export interface Cita {
   saldoPendiente: number;
   metodoPago?: 'Efectivo' | 'Tarjeta' | 'Transferencia' | 'Mixto';
   
+  // Confirmación por enlace (estilo Bitrix24)
+  tokenConfirmacion?: string;
+  confirmadaAt?: Date;
+
   // Metadata
   creadoPor: string; // Usuario que creó la cita (Antonio, Yaretzi, Keila)
   fechaCreacion: Date;
   ultimaActualizacion: Date;
   notas?: string;
+
+  // Telemedicina
+  telemedicinaLink?: string;
+  preconsulta?: {
+    motivo?: string;
+    sintomas?: string;
+    notas?: string;
+  };
+  documentos?: Array<{ nombre?: string; url: string }>;
 }
 
 export class CitaEntity implements Cita {
@@ -70,6 +83,13 @@ export class CitaEntity implements Cita {
   fechaCreacion!: Date;
   ultimaActualizacion!: Date;
   notas?: string;
+  telemedicinaLink?: string;
+  preconsulta?: {
+    motivo?: string;
+    sintomas?: string;
+    notas?: string;
+  };
+  documentos?: Array<{ nombre?: string; url: string }>;
 
   constructor(data: Cita) {
     Object.assign(this, data);

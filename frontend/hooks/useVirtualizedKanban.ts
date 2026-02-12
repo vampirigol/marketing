@@ -74,6 +74,12 @@ export function useVirtualizedKanban(
         color: 'yellow',
         icono: '💰',
       },
+      {
+        id: 'citas-locales' as LeadStatus,
+        titulo: 'Citas Locales',
+        color: 'teal',
+        icono: '📋',
+      },
     ],
     []
   );

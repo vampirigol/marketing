@@ -10,6 +10,7 @@ import {
   Layers,
   Users,
   Calendar,
+  CalendarRange,
   MessageSquare,
   DollarSign,
   BarChart3,
@@ -20,8 +21,8 @@ import {
   ChevronDown,
   FileText,
   Activity,
+  HeartPulse,
 } from 'lucide-react';
-import logoClinicas from '../../../src/Logos Clínicas/Logos Red de Clínicas Adventistas/cruz clinica sin fondo.png';
 import { SUCURSALES } from '@/lib/doctores-data';
 
 const navigation = [
@@ -30,7 +31,9 @@ const navigation = [
   { name: 'Recepción', href: '/recepcion', icon: UserCheck },
   { name: 'Pacientes', href: '/pacientes', icon: Users },
   { name: 'Citas', href: '/citas', icon: Calendar },
+  { name: 'Calendario', href: '/calendario', icon: CalendarRange },
   { name: 'Keila IA', href: '/matrix', icon: MessageSquare },
+  { name: 'Brigadas Médicas', href: '/brigadas-medicas', icon: HeartPulse },
   { name: 'Finanzas', href: '/finanzas', icon: DollarSign },
   { name: 'Reportes', href: '/reportes', icon: BarChart3 },
   { name: 'Salud', href: '/salud', icon: Activity },
@@ -42,7 +45,14 @@ export function Sidebar() {
   const pathname = usePathname();
   const [sucursalActual, setSucursalActual] = useState('Guadalajara');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [usuario, setUsuario] = useState<{ nombre: string; rol: string }>({
+    nombre: 'Keila IA',
+    rol: 'Contact Center',
+  });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Cargar sucursal del localStorage
   useEffect(() => {
@@ -52,22 +62,66 @@ export function Sidebar() {
     }
   }, []);
 
+  useEffect(() => {
+    const stored = localStorage.getItem('auth_user');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const nombre = parsed?.nombreCompleto || parsed?.nombre || parsed?.username || 'Usuario';
+        const rol = parsed?.rol || 'Usuario';
+        setUsuario({ nombre, rol });
+      } catch {
+        // ignore parse errors
+      }
+    }
+    const storedAvatar = localStorage.getItem('perfil_avatar');
+    if (storedAvatar) {
+      setAvatarUrl(storedAvatar);
+    }
+  }, []);
+
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsDropdownOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
     };
 
     if (isDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+    if (isUserMenuOpen) {
       document.addEventListener('click', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [isDropdownOpen]);
+  }, [isDropdownOpen, isUserMenuOpen]);
+
+  const abreviarNombre = (nombre: string) => {
+    if (nombre.length <= 28) return nombre;
+    const partes = nombre.split(' ').filter(Boolean);
+    if (partes.length <= 2) return nombre;
+    const nombres = partes.slice(0, 2).join(' ');
+    const apellidos = partes.slice(2).map((p) => `${p.charAt(0).toUpperCase()}.`).join(' ');
+    return `${nombres} ${apellidos}`.trim();
+  };
+
+  const obtenerIniciales = (nombre: string) => {
+    const partes = nombre.split(' ').filter(Boolean);
+    return partes.slice(0, 2).map((p) => p.charAt(0).toUpperCase()).join('');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    window.location.href = '/login';
+  };
 
   const handleSucursalChange = (sucursal: string) => {
     setSucursalActual(sucursal);
@@ -82,8 +136,10 @@ export function Sidebar() {
         <Link href="/" className="flex items-center space-x-3 group">
           <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm ring-1 ring-gray-200 group-hover:scale-105 transition-transform duration-200">
             <Image
-              src={logoClinicas}
+              src="/logo-clinicas.png"
               alt="Clínicas Adventistas"
+              width={28}
+              height={28}
               className="h-7 w-7 object-contain"
               priority
             />
@@ -170,14 +226,49 @@ export function Sidebar() {
           )}
         </div>
         
-        <div className="flex items-center space-x-3 px-3 py-3 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all duration-200 group">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200">
-            <User className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">Keila IA</p>
-            <p className="text-xs text-gray-500">Contact Center</p>
-          </div>
+        <div ref={userMenuRef} className="relative">
+          <button
+            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+            className="w-full flex items-center space-x-3 px-3 py-3 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-all duration-200 group"
+          >
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform duration-200 text-white text-sm font-semibold overflow-hidden">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                obtenerIniciales(usuario.nombre)
+              )}
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-semibold text-gray-900 truncate">
+                {abreviarNombre(usuario.nombre)}
+              </p>
+              <p className="text-xs text-gray-500 truncate">{usuario.rol}</p>
+            </div>
+          </button>
+
+          {isUserMenuOpen && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50">
+              <button
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  setIsUserMenuOpen(false);
+                  window.location.href = '/perfil';
+                }}
+              >
+                Ver perfil
+              </button>
+              <button
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                onClick={handleLogout}
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </aside>

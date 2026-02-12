@@ -6,7 +6,7 @@
 import { Request, Response } from 'express';
 import { AutenticarUsuarioUseCase, LoginDTO, RegistroDTO } from '../../core/use-cases/AutenticarUsuario';
 import { generarToken } from '../middleware/auth';
-import { DESCRIPCION_ROLES } from '../../core/entities/UsuarioSistema';
+import { DESCRIPCION_ROLES, UsuarioSistemaEntity } from '../../core/entities/UsuarioSistema';
 
 export class AuthController {
   constructor(
@@ -50,10 +50,10 @@ export class AuthController {
         token,
         mensaje: result.mensaje
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error en el login',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -96,13 +96,13 @@ export class AuthController {
       const result = await this.autenticarUsuarioUseCase.registrar(dto);
 
       res.status(201).json({
-        usuario: new (require('../../core/entities/UsuarioSistema').UsuarioSistemaEntity)(result.usuario).toSafeObject(),
+        usuario: new UsuarioSistemaEntity(result.usuario).toSafeObject(),
         mensaje: result.mensaje
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({
         error: 'Error al registrar usuario',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -124,12 +124,45 @@ export class AuthController {
         return;
       }
 
-      const entity = new (require('../../core/entities/UsuarioSistema').UsuarioSistemaEntity)(usuario);
+      const entity = new UsuarioSistemaEntity(usuario);
       res.json(entity.toSafeObject());
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al obtener usuario',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    }
+  };
+
+  /**
+   * POST /auth/perfil/foto
+   * Actualizar foto de perfil del usuario autenticado
+   */
+  actualizarFotoPerfil = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'No autenticado' });
+        return;
+      }
+      const { fotoUrl } = req.body as { fotoUrl?: string };
+      if (!fotoUrl) {
+        res.status(400).json({ error: 'fotoUrl es requerido' });
+        return;
+      }
+      const actualizado = await this.autenticarUsuarioUseCase.actualizarFotoPerfil(
+        req.user.id,
+        fotoUrl
+      );
+      if (!actualizado) {
+        res.status(404).json({ error: 'Usuario no encontrado' });
+        return;
+      }
+      const entity = new UsuarioSistemaEntity(actualizado);
+      res.json({ usuario: entity.toSafeObject(), mensaje: 'Foto actualizada' });
+    } catch (error: unknown) {
+      res.status(500).json({
+        error: 'Error al actualizar foto',
+        detalle: error instanceof Error ? error.message : 'Error desconocido',
       });
     }
   };
@@ -173,10 +206,10 @@ export class AuthController {
       }
 
       res.json({ mensaje: result.mensaje });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al cambiar contraseña',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -190,10 +223,10 @@ export class AuthController {
       res.json({
         roles: DESCRIPCION_ROLES
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al listar roles',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -213,15 +246,15 @@ export class AuthController {
         return;
       }
 
-      const entity = new (require('../../core/entities/UsuarioSistema').UsuarioSistemaEntity)(usuario);
+      const entity = new UsuarioSistemaEntity(usuario);
       res.json({
         usuario: entity.toSafeObject(),
         mensaje: 'Usuario suspendido'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al suspender usuario',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };
@@ -240,15 +273,15 @@ export class AuthController {
         return;
       }
 
-      const entity = new (require('../../core/entities/UsuarioSistema').UsuarioSistemaEntity)(usuario);
+      const entity = new UsuarioSistemaEntity(usuario);
       res.json({
         usuario: entity.toSafeObject(),
         mensaje: 'Usuario activado'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({
         error: 'Error al activar usuario',
-        detalle: error.message
+        detalle: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
   };

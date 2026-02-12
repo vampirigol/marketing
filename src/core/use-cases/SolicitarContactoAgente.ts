@@ -30,6 +30,8 @@ export interface SolicitarContactoDTO {
   // Metadata
   origen?: 'Web' | 'WhatsApp' | 'Facebook' | 'Instagram' | 'Telefono';
   creadoPor?: string;
+  /** Número de afiliado asignado al crear el lead (ej. RCA-YYYY-NNNNN). Si no se pasa, no se guarda. */
+  noAfiliacion?: string;
 }
 
 export interface SolicitarContactoResultado {
@@ -72,7 +74,8 @@ export class SolicitarContactoAgenteUseCase {
       creadoPor: dto.creadoPor || 'Cliente',
       fechaCreacion: new Date(),
       ultimaActualizacion: new Date(),
-      crmStatus: 'new'
+      crmStatus: 'new',
+      noAfiliacion: dto.noAfiliacion,
     });
 
     // 4. Guardar en repositorio

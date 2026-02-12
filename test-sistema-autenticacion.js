@@ -199,7 +199,7 @@ async function testAuth() {
         log('   ❌ Login con nueva contraseña falló', colors.red);
       }
     } else {
-      log('❌ Error al cambiar contraseña', colors.red);
+      log(`❌ Error al cambiar contraseña: ${changePassData.error || JSON.stringify(changePassData)}`, colors.red);
     }
 
     // 8. Suspender usuario

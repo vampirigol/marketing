@@ -142,6 +142,12 @@ export const COLOR_CLASSES = {
     text: 'text-yellow-700',
     badge: 'bg-yellow-100 text-yellow-700',
   },
+  teal: {
+    bg: 'bg-teal-50',
+    border: 'border-teal-200',
+    text: 'text-teal-700',
+    badge: 'bg-teal-100 text-teal-700',
+  },
 } as const;
 
 export type ColorKey = keyof typeof COLOR_CLASSES;

@@ -17,6 +17,20 @@ import crmRoutes from './crm';
 import sucursalesRoutes from './sucursales';
 import auditoriaRoutes from './auditoria';
 import healthRoutes from './health';
+import portalSucursalRoutes from './portal-sucursal';
+import bloqueosDoctorRoutes from './bloqueos-doctor';
+import configConsultasRoutes from './config-consultas';
+import metricasRoutes from './metricas';
+import historialClinicoRoutes from './historial-clinico';
+import recetasRoutes from './recetas';
+import ordenesLaboratorioRoutes from './ordenes-laboratorio';
+import notificacionesRoutes from './notificaciones';
+import integracionLaboratoriosRoutes from './integracion-laboratorios';
+import archivosPacienteRoutes from './archivos-paciente';
+import uploadRoutes from './upload';
+import calendarioRoutes from './calendario';
+import brigadasRoutes from './brigadas';
+import metaConfigRoutes from './meta-config';
 
 const router = Router();
 
@@ -43,8 +57,22 @@ router.use('/campanas', campanasRoutes);
 router.use('/import-export', importExportRoutes);
 router.use('/automatizaciones', automatizacionesRoutes);
 router.use('/crm', crmRoutes);
+router.use('/portal', portalSucursalRoutes);
+router.use('/bloqueos-doctor', bloqueosDoctorRoutes);
+router.use('/config-consultas', configConsultasRoutes);
+router.use('/metricas', metricasRoutes);
+router.use('/historial-clinico', historialClinicoRoutes);
+router.use('/recetas', recetasRoutes);
+router.use('/ordenes-laboratorio', ordenesLaboratorioRoutes);
+router.use('/notificaciones', notificacionesRoutes);
+router.use('/integracion-laboratorios', integracionLaboratoriosRoutes);
+router.use('/archivos-paciente', archivosPacienteRoutes);
 router.use('/sucursales', sucursalesRoutes);
+router.use('/upload', uploadRoutes);
 router.use('/auditoria', auditoriaRoutes);
+router.use('/calendario', calendarioRoutes);
+router.use('/brigadas', brigadasRoutes);
+router.use('/meta-config', metaConfigRoutes);
 router.use('/health', healthRoutes);
 
 /**

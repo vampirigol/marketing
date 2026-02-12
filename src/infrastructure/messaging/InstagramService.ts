@@ -27,7 +27,8 @@ export class InstagramService {
 
   constructor() {
     this.apiUrl = process.env.INSTAGRAM_API_URL || 'https://graph.facebook.com';
-    this.pageAccessToken = process.env.INSTAGRAM_PAGE_ACCESS_TOKEN || '';
+    this.pageAccessToken =
+      process.env.INSTAGRAM_PAGE_ACCESS_TOKEN || process.env.FACEBOOK_PAGE_ACCESS_TOKEN || '';
     this.instagramBusinessAccountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID || '';
 
     if (!this.pageAccessToken || !this.instagramBusinessAccountId) {
@@ -159,44 +160,67 @@ export class InstagramService {
   }
 
   /**
-   * Procesa webhook entrante de Instagram
+   * Extrae todos los mensajes de texto del payload (object: "instagram" o "page").
+   * Meta puede enviar varios eventos en un solo webhook.
+   */
+  extraerMensajes(payload: Record<string, unknown>): Array<{ senderId: string; texto: string }> {
+    const payloadAny = payload as { object?: string; entry?: Array<{ messaging?: Array<{ sender?: { id?: string }; message?: { text?: string } }> }> };
+    if (payloadAny.object !== 'instagram' && payloadAny.object !== 'page') return [];
+    const entries = payloadAny.entry ?? [];
+    const mensajes: Array<{ senderId: string; texto: string }> = [];
+
+    for (const entry of entries) {
+      const messagingList = entry.messaging ?? [];
+      for (const ev of messagingList) {
+        const msg = ev.message;
+        if (!msg?.text) continue;
+        const senderId = ev.sender?.id ?? '';
+        if (senderId) mensajes.push({ senderId, texto: msg.text });
+      }
+    }
+    return mensajes;
+  }
+
+  /**
+   * Obtiene nombre y foto del perfil de un usuario de Instagram Messaging (IGSID).
+   * Requiere que el usuario haya enviado mensaje o interactuado previamente.
+   */
+  async obtenerPerfilUsuario(igsId: string): Promise<{ name?: string; profilePic?: string }> {
+    if (!this.isConfigured()) return {};
+    try {
+      const url = `${this.apiUrl}/${this.apiVersion}/${igsId}`;
+      const response = await axios.get(url, {
+        params: {
+          fields: 'name,profile_pic',
+          access_token: this.pageAccessToken,
+        },
+      });
+      return {
+        name: response.data.name,
+        profilePic: response.data.profile_pic,
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Procesa webhook entrante de Instagram (legacy, un solo evento)
    */
   procesarWebhook(payload: Record<string, unknown>): {
     tipo: 'mensaje' | 'historia' | 'desconocido';
     datos: Record<string, unknown>;
   } {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const payloadAny = payload as any;
+    const mensajes = this.extraerMensajes(payload);
+    if (mensajes.length > 0) {
+      return { tipo: 'mensaje', datos: mensajes[0] };
+    }
+    const payloadAny = payload as { entry?: Array<{ changes?: Array<{ value?: { media_id?: string; from?: { id?: string } } }> }> };
     const entry = payloadAny.entry?.[0];
-    const messaging = entry?.messaging?.[0];
-
-    if (messaging?.message) {
-      return {
-        tipo: 'mensaje',
-        datos: {
-          senderId: messaging.sender.id,
-          recipientId: messaging.recipient.id,
-          texto: messaging.message.text || '',
-          timestamp: messaging.timestamp
-        }
-      };
-    }
-
-    // Instagram Story Mentions
     if (entry?.changes?.[0]?.value?.media_id) {
-      return {
-        tipo: 'historia',
-        datos: {
-          mediaId: entry.changes[0].value.media_id,
-          userId: entry.changes[0].value.from?.id
-        }
-      };
+      return { tipo: 'historia', datos: { mediaId: entry.changes[0].value.media_id } };
     }
-
-    return {
-      tipo: 'desconocido',
-      datos: payload
-    };
+    return { tipo: 'desconocido', datos: payload };
   }
 
   /**

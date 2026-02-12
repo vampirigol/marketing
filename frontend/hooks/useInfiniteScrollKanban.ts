@@ -24,7 +24,7 @@ interface UseInfiniteScrollKanbanProps {
   initialStates?: LeadStatus[];
 }
 
-const DEFAULT_INITIAL_STATES: LeadStatus[] = ['new', 'reviewing', 'rejected', 'qualified', 'open', 'in-progress', 'open-deal'];
+const DEFAULT_INITIAL_STATES: LeadStatus[] = ['new', 'reviewing', 'rejected', 'qualified', 'open', 'in-progress', 'open-deal', 'citas-locales'];
 
 export function useInfiniteScrollKanban({
   initialLimit = 20,

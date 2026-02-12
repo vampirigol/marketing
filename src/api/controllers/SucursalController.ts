@@ -25,4 +25,17 @@ export class SucursalController {
       res.status(500).json({ success: false, error: errorMessage });
     }
   }
+
+  /** Listado público (solo id y nombre) para formulario de reserva */
+  async listarPublico(req: Request, res: Response): Promise<void> {
+    try {
+      const sucursales = await this.repository.obtenerActivas();
+      res.json({
+        sucursales: sucursales.map((s) => ({ id: s.id, nombre: s.nombre })),
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({ error: errorMessage });
+    }
+  }
 }

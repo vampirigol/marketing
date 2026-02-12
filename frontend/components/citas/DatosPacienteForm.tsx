@@ -17,9 +17,18 @@ interface DatosPacienteFormProps {
     religion?: string;
   }) => void;
   onCancel: () => void;
+  /** Si true, apellido materno es obligatorio (ej. flujo CRM) */
+  requerirApellidoMaterno?: boolean;
+  /** Si true, correo electrónico es obligatorio (ej. flujo CRM) */
+  requerirEmail?: boolean;
 }
 
-export function DatosPacienteForm({ onNext, onCancel }: DatosPacienteFormProps) {
+export function DatosPacienteForm({
+  onNext,
+  onCancel,
+  requerirApellidoMaterno = false,
+  requerirEmail = false,
+}: DatosPacienteFormProps) {
   const [nombre, setNombre] = useState('');
   const [apellidoPaterno, setApellidoPaterno] = useState('');
   const [apellidoMaterno, setApellidoMaterno] = useState('');
@@ -35,10 +44,13 @@ export function DatosPacienteForm({ onNext, onCancel }: DatosPacienteFormProps) 
 
     if (!nombre.trim()) newErrors.nombre = 'El nombre es obligatorio';
     if (!apellidoPaterno.trim()) newErrors.apellidoPaterno = 'El apellido paterno es obligatorio';
-    // Apellido Materno es opcional
+    if (requerirApellidoMaterno && !apellidoMaterno.trim()) {
+      newErrors.apellidoMaterno = 'El apellido materno es obligatorio';
+    }
     if (!telefono.trim()) newErrors.telefono = 'El teléfono es obligatorio';
-    // Email es opcional, pero si se proporciona debe ser válido
-    if (email && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (requerirEmail && !email?.trim()) {
+      newErrors.email = 'El correo electrónico es obligatorio';
+    } else if (email && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = 'El correo electrónico no es válido';
     }
     if (!edad) newErrors.edad = 'La edad es obligatoria';
@@ -63,7 +75,14 @@ export function DatosPacienteForm({ onNext, onCancel }: DatosPacienteFormProps) 
     });
   };
 
-  const puedeAvanzar = nombre && apellidoPaterno && telefono && edad && noAfiliacion;
+  const puedeAvanzar =
+    nombre &&
+    apellidoPaterno &&
+    telefono &&
+    edad &&
+    noAfiliacion &&
+    (!requerirApellidoMaterno || apellidoMaterno.trim()) &&
+    (!requerirEmail || (email && email.trim()));
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl mx-auto">
@@ -127,7 +146,8 @@ export function DatosPacienteForm({ onNext, onCancel }: DatosPacienteFormProps) 
           {/* Apellido Materno */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Apellido Materno <span className="text-gray-500 font-normal">(Opcional)</span>
+              Apellido Materno {!requerirApellidoMaterno && <span className="text-gray-500 font-normal">(Opcional)</span>}
+              {requerirApellidoMaterno && <span className="text-red-600"> *</span>}
             </label>
             <Input
               type="text"
@@ -166,7 +186,8 @@ export function DatosPacienteForm({ onNext, onCancel }: DatosPacienteFormProps) 
           {/* Email */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Correo Electrónico <span className="text-gray-500 font-normal">(Opcional)</span>
+              Correo Electrónico {!requerirEmail && <span className="text-gray-500 font-normal">(Opcional)</span>}
+              {requerirEmail && <span className="text-red-600"> *</span>}
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />

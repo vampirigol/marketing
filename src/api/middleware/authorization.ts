@@ -7,12 +7,12 @@ import { Request, Response, NextFunction } from 'express';
 import { Rol, PERMISOS_POR_ROL } from '../../core/entities/UsuarioSistema';
 
 /**
- * Middleware que requiere uno o más roles específicos
- * 
- * @example
- * router.delete('/citas/:id', autenticar, requiereRol('Admin', 'Supervisor'), controller.eliminar)
+ * Middleware que requiere uno o más roles específicos.
+ * Acepta roles como argumentos: requiereRol('Admin', 'Supervisor')
+ * o como array: requiereRol(['Admin', 'Supervisor'])
  */
-export const requiereRol = (...rolesPermitidos: Rol[]) => {
+export const requiereRol = (...rolesPermitidos: (Rol | Rol[])[]): ((req: Request, res: Response, next: NextFunction) => void) => {
+  const roles = rolesPermitidos.flat() as Rol[];
   return (req: Request, res: Response, next: NextFunction): void => {
     // Verificar que el usuario esté autenticado
     if (!req.user) {
@@ -25,12 +25,12 @@ export const requiereRol = (...rolesPermitidos: Rol[]) => {
     }
 
     // Verificar que tenga el rol permitido
-    if (!rolesPermitidos.includes(req.user.rol)) {
+    if (!roles.includes(req.user.rol)) {
       res.status(403).json({
         success: false,
         error: 'No tienes permisos para realizar esta acción',
         codigo: 'ACCESO_DENEGADO',
-        requerido: rolesPermitidos,
+        requerido: roles,
         actual: req.user.rol
       });
       return;
