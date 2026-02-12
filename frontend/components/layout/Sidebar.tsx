@@ -33,6 +33,7 @@ const navigation = [
   { name: 'Citas', href: '/citas', icon: Calendar },
   { name: 'Calendario', href: '/calendario', icon: CalendarRange },
   { name: 'Keila IA', href: '/matrix', icon: MessageSquare },
+  { name: 'Mensajero', href: '/mensajero', icon: MessageSquare },
   { name: 'Brigadas Médicas', href: '/brigadas-medicas', icon: HeartPulse },
   { name: 'Finanzas', href: '/finanzas', icon: DollarSign },
   { name: 'Reportes', href: '/reportes', icon: BarChart3 },

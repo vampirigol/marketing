@@ -407,14 +407,25 @@ function ConversacionCard({
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {conversacion.avatar ? (
-            <Image
-              src={conversacion.avatar}
-              alt="Avatar"
-              width={40}
-              height={40}
-              unoptimized
-              className="flex-shrink-0 w-10 h-10 rounded-full object-cover border border-gray-200"
-            />
+            conversacion.avatar === '/client-avatar.png' ? (
+              <img
+                src="/client-avatar.png"
+                alt="Avatar"
+                width={40}
+                height={40}
+                className="flex-shrink-0 w-10 h-10 rounded-full object-cover border border-gray-200"
+                style={{ objectFit: 'cover', borderRadius: '9999px', border: '1px solid #e5e7eb', width: '40px', height: '40px' }}
+              />
+            ) : (
+              <Image
+                src={conversacion.avatar}
+                alt="Avatar"
+                width={40}
+                height={40}
+                unoptimized
+                className="flex-shrink-0 w-10 h-10 rounded-full object-cover border border-gray-200"
+              />
+            )
           ) : (
             <div
               className={`flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br ${avatarStyle.from} ${avatarStyle.to} flex items-center justify-center text-white shadow-sm`}
