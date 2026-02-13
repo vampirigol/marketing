@@ -1,6 +1,7 @@
 import { Server as HTTPServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import Database from '../database/Database';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -54,6 +55,11 @@ export class SocketService {
 
         // Unirse a sala personal
         socket.join(`user:${socket.userId}`);
+
+        // Unirse a salas de sucursales (para enrutar mensajes WhatsApp solo a agentes de esa sucursal)
+        this.unirSucursales(socket).catch((err) =>
+          console.warn('[Socket] Error uniendo a salas sucursal:', err)
+        );
       }
 
       // Eventos de mensajería
@@ -112,6 +118,39 @@ export class SocketService {
       conversacionId,
       cambios,
     });
+  }
+
+  /**
+   * Emite un evento solo a los agentes de una sucursal (multi-sucursal WhatsApp).
+   * Los sockets se unen a sala sucursal:id al conectar según sucursal_asignada y sucursales_acceso.
+   */
+  emitToSucursal(sucursalId: string, evento: string, data: any): void {
+    this.io.to(`sucursal:${sucursalId}`).emit(evento, data);
+  }
+
+  /**
+   * Obtiene sucursal_asignada y sucursales_acceso del usuario y une el socket a salas sucursal:uuid.
+   */
+  private async unirSucursales(socket: AuthenticatedSocket): Promise<void> {
+    if (!socket.userId) return;
+    try {
+      const pool = Database.getInstance().getPool();
+      const res = await pool.query<{ sucursal_asignada: string | null; sucursales_acceso: string[] | null }>(
+        'SELECT sucursal_asignada, sucursales_acceso FROM usuarios WHERE id = $1',
+        [socket.userId]
+      );
+      if (res.rows.length === 0) return;
+      const row = res.rows[0];
+      const ids = new Set<string>();
+      if (row.sucursal_asignada) ids.add(row.sucursal_asignada);
+      const acceso = row.sucursales_acceso;
+      if (Array.isArray(acceso)) acceso.forEach((id: string) => ids.add(id));
+      for (const id of ids) {
+        socket.join(`sucursal:${id}`);
+      }
+    } catch {
+      // Sin DB o usuario sin sucursales
+    }
   }
 
   /**

@@ -19,6 +19,7 @@ import { ExpiracionOpenTicketsScheduler } from './ExpiracionOpenTicketsScheduler
 import { AutomationScheduler } from './AutomationScheduler';
 import { CalendarioRecordatorioScheduler } from './CalendarioRecordatorioScheduler';
 import { CitasRecordatorioScheduler } from './CitasRecordatorioScheduler';
+import { MarkNoShowsScheduler } from './MarkNoShowsScheduler';
 import { CitaRepository } from '../database/repositories/CitaRepository';
 import { InasistenciaRepository } from '../database/repositories/InasistenciaRepository';
 import { SucursalRepository } from '../database/repositories/SucursalRepository';
@@ -82,6 +83,7 @@ export class SchedulerManager {
   private automationScheduler?: AutomationScheduler;
   private calendarioRecordatorioScheduler?: CalendarioRecordatorioScheduler;
   private citasRecordatorioScheduler?: CitasRecordatorioScheduler;
+  private markNoShowsScheduler?: MarkNoShowsScheduler;
 
   private estadoSchedulers: Map<string, SchedulerStatus>;
 
@@ -166,6 +168,10 @@ export class SchedulerManager {
       this.citasRecordatorioScheduler = new CitasRecordatorioScheduler();
       this.registrarScheduler('CitasRecordatorio');
 
+      // 10. No Confirmado -> No Asistió (cada hora)
+      this.markNoShowsScheduler = new MarkNoShowsScheduler();
+      this.registrarScheduler('MarkNoShows');
+
       console.log('✅ Todos los schedulers inicializados correctamente\n');
 
     } catch (error) {
@@ -224,6 +230,11 @@ export class SchedulerManager {
       if (this.citasRecordatorioScheduler) {
         this.citasRecordatorioScheduler.start();
         this.actualizarEstado('CitasRecordatorio', 'running');
+      }
+
+      if (this.markNoShowsScheduler) {
+        this.markNoShowsScheduler.start();
+        this.actualizarEstado('MarkNoShows', 'running');
       }
 
       console.log('\n╔═══════════════════════════════════════════════════════╗');
@@ -285,6 +296,11 @@ export class SchedulerManager {
     if (this.citasRecordatorioScheduler) {
       this.citasRecordatorioScheduler.stop();
       this.actualizarEstado('CitasRecordatorio', 'stopped');
+    }
+
+    if (this.markNoShowsScheduler) {
+      this.markNoShowsScheduler.stop();
+      this.actualizarEstado('MarkNoShows', 'stopped');
     }
 
     console.log('✅ Todos los schedulers detenidos\n');

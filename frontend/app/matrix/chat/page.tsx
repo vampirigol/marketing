@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import ConversationHeader from "@/components/matrix/ConversationHeader";
 import MessageInput from "@/components/matrix/MessageInput";
@@ -9,8 +9,23 @@ import PlantillasRespuesta from "@/components/matrix/PlantillasRespuesta";
 import MatrixWebSocketService from "@/lib/matrix-websocket.service";
 import { matrixService } from "@/lib/matrix.service";
 
+
 export default function ChatPage() {
+  return (
+    <Suspense fallback={<div>Cargando chat...</div>}>
+      <SearchParamsWrapper>
+        {(searchParams) => <ChatPageContent searchParams={searchParams} />}
+      </SearchParamsWrapper>
+    </Suspense>
+  );
+}
+
+function SearchParamsWrapper({ children }: { children: (searchParams: ReturnType<typeof useSearchParams>) => JSX.Element }) {
   const searchParams = useSearchParams();
+  return children(searchParams);
+}
+
+function ChatPageContent({ searchParams }: { searchParams: ReturnType<typeof useSearchParams> }) {
   const conversacionId = searchParams.get("id");
   
   const [conversacion, setConversacion] = useState<any>(null);
@@ -174,70 +189,27 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-          <p className="text-gray-600">Cargando conversación...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!conversacion) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <p className="text-xl text-gray-700">Conversación no encontrada</p>
-          <button
-            onClick={() => window.history.back()}
-            className="mt-4 rounded-xl bg-indigo-600 px-6 py-2 text-white hover:bg-indigo-700"
-          >
-            Volver
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-screen flex-col bg-gray-50">
-      {/* Header */}
-      <ConversationHeader
-        conversacion={conversacion}
-        onBack={() => window.history.back()}
-        onCambiarPrioridad={handleCambiarPrioridad}
-        onAgregarEtiqueta={handleAgregarEtiqueta}
-        onQuitarEtiqueta={handleQuitarEtiqueta}
-        onEscalar={handleEscalar}
-        onArchivar={handleArchivar}
-      />
-
-      {/* Mensajes */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="mx-auto max-w-4xl">
-          {mensajes.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center text-gray-500">
-                <p className="text-lg">No hay mensajes aún</p>
-                <p className="text-sm">Envía el primer mensaje para iniciar la conversación</p>
-              </div>
-            </div>
-          ) : (
-            mensajes.map((mensaje) => (
-              <MessageBubble key={mensaje.id} mensaje={mensaje} />
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+    <div className="flex flex-col h-full w-full">
+      <ConversationHeader conversacion={conversacion} />
+      <div className="flex-1 overflow-y-auto px-4 py-2" ref={messagesEndRef}>
+        {loading ? (
+          <div className="text-center text-gray-400 mt-10">Cargando mensajes...</div>
+        ) : (
+          mensajes.map((mensaje, idx) => (
+            <MessageBubble
+              key={mensaje.id || idx}
+              mensaje={mensaje}
+              esPropio={mensaje.remitente === conversacion?.usuarioActual}
+            />
+          ))
+        )}
+        <div ref={messagesEndRef} />
       </div>
-
-      {/* Input */}
       <MessageInput
         onEnviarMensaje={handleEnviarMensaje}
-        onAbrirPlantillas={() => setMostrarPlantillas(true)}
-        token={token}
+        mostrarPlantillas={mostrarPlantillas}
+        setMostrarPlantillas={setMostrarPlantillas}
       />
 
       {/* Modal de Plantillas */}

@@ -31,6 +31,7 @@ import uploadRoutes from './upload';
 import calendarioRoutes from './calendario';
 import brigadasRoutes from './brigadas';
 import metaConfigRoutes from './meta-config';
+import cuidadosEspiritualesRoutes from './cuidados-espirituales';
 
 const router = Router();
 
@@ -73,6 +74,7 @@ router.use('/auditoria', auditoriaRoutes);
 router.use('/calendario', calendarioRoutes);
 router.use('/brigadas', brigadasRoutes);
 router.use('/meta-config', metaConfigRoutes);
+router.use('/cuidados-espirituales', cuidadosEspiritualesRoutes);
 router.use('/health', healthRoutes);
 
 /**

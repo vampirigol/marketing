@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { 
+import {
   CheckCircle,
   Clock,
   Search,
@@ -14,13 +14,19 @@ import {
   MapPin,
   AlertCircle,
   UserCheck,
-  XCircle
+  XCircle,
+  Plus,
+  CalendarClock,
+  RotateCcw,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { MarcarLlegadaModal } from '@/components/recepcion/MarcarLlegadaModal';
+import { AgendarCitaModal } from '@/components/matrix/AgendarCitaModal';
 import { citasService } from '@/lib/citas.service';
 import { pacientesService } from '@/lib/pacientes.service';
 import { obtenerSucursales, SucursalApi } from '@/lib/sucursales.service';
+import { recepcionRecuperacionService, type ItemListaRecuperacion } from '@/lib/recepcion-recuperacion.service';
 import { SUCURSALES } from '@/lib/doctores-data';
 
 interface Cita {
@@ -62,6 +68,9 @@ export default function RecepcionPage() {
   ];
 
   const [citasHoy, setCitasHoy] = useState<Cita[]>([]);
+  const [listaRecuperacion, setListaRecuperacion] = useState<ItemListaRecuperacion[]>([]);
+  const [showReagendarModal, setShowReagendarModal] = useState(false);
+  const [reagendarItem, setReagendarItem] = useState<ItemListaRecuperacion | null>(null);
 
   useEffect(() => {
     const fallbackSucursales: SucursalApi[] = SUCURSALES.map((nombre, index) => ({
@@ -182,16 +191,62 @@ export default function RecepcionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sucursalIdActual]);
 
+  const cargarListaRecuperacion = async () => {
+    if (!sucursalIdActual) return;
+    try {
+      const lista = await recepcionRecuperacionService.getListaRecuperacion(sucursalIdActual);
+      setListaRecuperacion(lista);
+    } catch (e) {
+      console.error('Error cargando lista de recuperación:', e);
+      setListaRecuperacion([]);
+    }
+  };
+
+  useEffect(() => {
+    cargarListaRecuperacion();
+  }, [sucursalIdActual]);
+
+  const handleAbrirReagendar = (item: ItemListaRecuperacion) => {
+    setReagendarItem(item);
+    setShowReagendarModal(true);
+  };
+
+  const handleCitaCreadaReagendar = async (cita: { id: string; pacienteId?: string }) => {
+    if (!reagendarItem || !sucursalIdActual) return;
+    try {
+      await recepcionRecuperacionService.vincularLeadANuevaCita(
+        reagendarItem.leadId,
+        cita.id,
+        sucursalIdActual,
+        sucursalActual
+      );
+      setShowReagendarModal(false);
+      setReagendarItem(null);
+      cargarListaRecuperacion();
+    } catch (e) {
+      console.error('Error vinculando lead a nueva cita:', e);
+    }
+  };
+
+  const formatearUltimaCitaFallida = (item: ItemListaRecuperacion) => {
+    if (!item.ultimaCitaFallida) return '—';
+    const { fecha, hora } = item.ultimaCitaFallida;
+    const d = new Date(fecha);
+    const fechaStr = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+    const horaStr = hora?.slice(0, 5) || '';
+    return `${fechaStr} ${horaStr}`;
+  };
+
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
       case 'pendiente':
-        return <Badge variant="warning">⏰ Pendiente</Badge>;
+        return <Badge variant="warning">⏰ Pendiente por confirmar</Badge>;
       case 'en-espera':
-        return <Badge variant="info">👤 En Espera</Badge>;
+        return <Badge variant="info">👤 En Espera de atención</Badge>;
       case 'atendiendo':
         return <Badge variant="primary">🩺 Atendiendo</Badge>;
       case 'completada':
-        return <Badge variant="success">✅ Completada</Badge>;
+        return <Badge variant="success">✅ Completada / Pagado</Badge>;
       case 'inasistencia':
         return <Badge variant="danger">❌ Inasistencia</Badge>;
       default:
@@ -287,6 +342,12 @@ export default function RecepcionPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/citas">
+              <Button variant="primary" className="gap-2">
+                <Plus className="w-4 h-4" />
+                Agendar
+              </Button>
+            </Link>
             <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
               <MapPin className="w-4 h-4 text-gray-500" />
               <select
@@ -372,6 +433,57 @@ export default function RecepcionPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Lista de Recuperación (No Asistió) */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarClock className="w-5 h-5 text-amber-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Lista de Recuperación (No Asistió)</h2>
+              <Badge variant="secondary">{listaRecuperacion.length}</Badge>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-600">
+                    <th className="py-3 px-2 font-medium">Nombre</th>
+                    <th className="py-3 px-2 font-medium">Última Cita Fallida</th>
+                    <th className="py-3 px-2 font-medium">Teléfono</th>
+                    <th className="py-3 px-2 font-medium w-32">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listaRecuperacion.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-6 text-center text-gray-500">
+                        No hay leads en lista de recuperación para esta sucursal.
+                      </td>
+                    </tr>
+                  ) : (
+                    listaRecuperacion.map((item) => (
+                      <tr key={item.leadId} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-2 font-medium text-gray-900">{item.nombre || '—'}</td>
+                        <td className="py-3 px-2 text-gray-600">{formatearUltimaCitaFallida(item)}</td>
+                        <td className="py-3 px-2 text-gray-600">{item.telefono || '—'}</td>
+                        <td className="py-3 px-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => handleAbrirReagendar(item)}
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            Reagendar
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Filters */}
         <Card>
@@ -600,6 +712,18 @@ export default function RecepcionPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Reagendar (lista de recuperación) */}
+      <AgendarCitaModal
+        isOpen={showReagendarModal}
+        onClose={() => {
+          setShowReagendarModal(false);
+          setReagendarItem(null);
+        }}
+        pacienteId={reagendarItem?.pacienteId ?? undefined}
+        pacienteNombre={reagendarItem?.nombre ?? undefined}
+        onCitaCreada={handleCitaCreadaReagendar}
+      />
     </DashboardLayout>
   );
 }

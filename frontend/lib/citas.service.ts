@@ -105,10 +105,11 @@ export const citasService = {
     return response.data;
   },
 
-  // Obtener citas por rango de fechas
-  async obtenerPorRango(params: { fechaInicio: string; fechaFin: string; [key: string]: any }) {
-    const response = await api.get('/citas/rango', { params });
-    return response.data.citas;
+
+  // Obtener citas por doctor y rango de fechas
+  async obtenerCitasPorDoctorYRango(params: { medico: string; fechaInicio: string; fechaFin: string }) {
+    const response = await api.get('/citas/doctor/rango', { params });
+    return response.data.citas ?? [];
   },
 
   // Listar lista de espera

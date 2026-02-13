@@ -66,6 +66,7 @@ export class MatrixController {
   private facebookService: FacebookService;
   private instagramService: InstagramService;
   private conversacionRepo: ConversacionRepositoryPostgres;
+  private sucursalRepo: SucursalRepositoryPostgres;
 
   // Cache temporal de conversaciones (en producción usar Redis/DB)
   private conversaciones: Map<string, Conversacion> = new Map();
@@ -139,6 +140,7 @@ export class MatrixController {
     this.facebookService = new FacebookService();
     this.instagramService = new InstagramService();
     this.conversacionRepo = new ConversacionRepositoryPostgres();
+    this.sucursalRepo = new SucursalRepositoryPostgres();
   }
 
   /**
@@ -181,7 +183,30 @@ export class MatrixController {
   }
 
   /**
-   * Obtiene todas las conversaciones activas desde BD
+   * Verifica que el usuario tenga acceso a la conversación (misma sucursal o Contact_Center/Admin).
+   * Devuelve la conversación o envía 403/404 y retorna null.
+   */
+  private async verificarAccesoConversacion(
+    req: Request,
+    res: Response,
+    conversacionId: string
+  ): Promise<{ id: string; canal: string; canalId: string; sucursalId?: string } | null> {
+    const conversacion = await this.conversacionRepo.obtenerPorId(conversacionId);
+    if (!conversacion) {
+      res.status(404).json({ success: false, message: 'Conversación no encontrada' });
+      return null;
+    }
+    const puedeVerTodasSucursales = req.user?.rol === 'Contact_Center' || req.user?.rol === 'Admin';
+    if (!puedeVerTodasSucursales && conversacion.sucursalId && conversacion.sucursalId !== req.user?.sucursalId) {
+      res.status(403).json({ success: false, message: 'No tienes acceso a conversaciones de otra sucursal' });
+      return null;
+    }
+    return conversacion;
+  }
+
+  /**
+   * Obtiene todas las conversaciones activas desde BD.
+   * Contact_Center y Admin ven todas; el resto solo las de su propia sucursal (y sin sucursal: FB/IG).
    * GET /api/matrix/conversaciones
    */
   async obtenerConversaciones(req: Request, res: Response): Promise<void> {
@@ -190,10 +215,19 @@ export class MatrixController {
       const canalMap: Record<string, string> = { whatsapp: 'WhatsApp', facebook: 'Facebook', instagram: 'Instagram' };
       const estadoMap: Record<string, string> = { activa: 'Activa', pendiente: 'Pendiente', cerrada: 'Cerrada' };
 
+      const rol = req.user?.rol;
+      const puedeVerTodasSucursales = rol === 'Contact_Center' || rol === 'Admin';
+      const sucursalIds: string[] | undefined = puedeVerTodasSucursales
+        ? undefined
+        : req.user?.sucursalId
+          ? [req.user.sucursalId]
+          : [];
+
       const conversaciones = await this.conversacionRepo.obtenerTodas({
         canal: canal ? (canalMap[String(canal)] || String(canal)) : undefined,
         estado: estado ? (estadoMap[String(estado)] || String(estado)) : undefined,
         busqueda: busqueda ? String(busqueda) : undefined,
+        sucursalIds,
       });
 
       const resultado = conversaciones.map((c) => this.mapConversacionParaFrontend(c));
@@ -220,15 +254,8 @@ export class MatrixController {
   async obtenerConversacion(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const conversacion = await this.conversacionRepo.obtenerPorId(id);
-
-      if (!conversacion) {
-        res.status(404).json({
-          success: false,
-          message: 'Conversación no encontrada',
-        });
-        return;
-      }
+      const conversacion = await this.verificarAccesoConversacion(req, res, id);
+      if (!conversacion) return;
 
       const mensajes = await this.conversacionRepo.obtenerMensajes(id);
 
@@ -275,15 +302,8 @@ export class MatrixController {
         return;
       }
 
-      const conversacion = await this.conversacionRepo.obtenerPorId(id);
-
-      if (!conversacion) {
-        res.status(404).json({
-          success: false,
-          message: 'Conversación no encontrada',
-        });
-        return;
-      }
+      const conversacion = await this.verificarAccesoConversacion(req, res, id);
+      if (!conversacion) return;
 
       // Persistir mensaje en BD (siempre, datos reales)
       const mensajeGuardado = await this.conversacionRepo.enviarMensaje({
@@ -340,15 +360,8 @@ export class MatrixController {
   async marcarComoLeida(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-
-      const existe = await this.conversacionRepo.obtenerPorId(id);
-      if (!existe) {
-        res.status(404).json({
-          success: false,
-          message: 'Conversación no encontrada',
-        });
-        return;
-      }
+      const existe = await this.verificarAccesoConversacion(req, res, id);
+      if (!existe) return;
 
       await this.conversacionRepo.marcarComoLeida(id);
 
@@ -384,14 +397,8 @@ export class MatrixController {
         return;
       }
 
-      const existe = await this.conversacionRepo.obtenerPorId(id);
-      if (!existe) {
-        res.status(404).json({
-          success: false,
-          message: 'Conversación no encontrada',
-        });
-        return;
-      }
+      const existe = await this.verificarAccesoConversacion(req, res, id);
+      if (!existe) return;
 
       const estadoMap: Record<string, string> = { activa: 'Activa', pendiente: 'Pendiente', cerrada: 'Cerrada' };
       await this.conversacionRepo.actualizarEstado(id, estadoMap[estado] || estado);
@@ -428,14 +435,8 @@ export class MatrixController {
         return;
       }
 
-      const existe = await this.conversacionRepo.obtenerPorId(id);
-      if (!existe) {
-        res.status(404).json({
-          success: false,
-          message: 'Conversación no encontrada',
-        });
-        return;
-      }
+      const existe = await this.verificarAccesoConversacion(req, res, id);
+      if (!existe) return;
 
       await this.conversacionRepo.agregarEtiqueta(id, etiqueta);
       const actualizado = await this.conversacionRepo.obtenerPorId(id);
@@ -463,14 +464,8 @@ export class MatrixController {
     try {
       const { id, etiqueta } = req.params;
 
-      const existe = await this.conversacionRepo.obtenerPorId(id);
-      if (!existe) {
-        res.status(404).json({
-          success: false,
-          message: 'Conversación no encontrada',
-        });
-        return;
-      }
+      const existe = await this.verificarAccesoConversacion(req, res, id);
+      if (!existe) return;
 
       await this.conversacionRepo.quitarEtiqueta(id, decodeURIComponent(etiqueta));
       const actualizado = await this.conversacionRepo.obtenerPorId(id);
@@ -507,14 +502,8 @@ export class MatrixController {
         return;
       }
 
-      const existe = await this.conversacionRepo.obtenerPorId(id);
-      if (!existe) {
-        res.status(404).json({
-          success: false,
-          message: 'Conversación no encontrada',
-        });
-        return;
-      }
+      const existe = await this.verificarAccesoConversacion(req, res, id);
+      if (!existe) return;
 
       await this.conversacionRepo.vincularPaciente(id, pacienteId);
 
@@ -537,9 +526,15 @@ export class MatrixController {
    * Obtiene estadísticas del Contact Center
    * GET /api/matrix/estadisticas
    */
-  async obtenerEstadisticas(_req: Request, res: Response): Promise<void> {
+  async obtenerEstadisticas(req: Request, res: Response): Promise<void> {
     try {
-      const conversaciones = await this.conversacionRepo.obtenerTodas({});
+      const puedeVerTodasSucursales = req.user?.rol === 'Contact_Center' || req.user?.rol === 'Admin';
+      const sucursalIds: string[] | undefined = puedeVerTodasSucursales
+        ? undefined
+        : req.user?.sucursalId
+          ? [req.user.sucursalId]
+          : [];
+      const conversaciones = await this.conversacionRepo.obtenerTodas({ sucursalIds });
       const hoy = new Date().toDateString();
 
       const estadisticas = {
@@ -736,34 +731,46 @@ export class MatrixController {
       const webhook = this.whatsappService.procesarWebhook(req.body);
 
       if (webhook.tipo === 'mensaje') {
-        const datos = webhook.datos as { de?: string; texto?: string; nombreContacto?: string };
-        const conversacionId = String(datos.de ?? '');
+        const datos = webhook.datos as { de?: string; texto?: string; nombreContacto?: string; phone_number_id?: string };
+        const from = String(datos.de ?? '');
         const texto = String(datos.texto ?? '');
-        const nombreContacto = String(datos.nombreContacto ?? datos.de ?? '');
+        const nombreContacto = String(datos.nombreContacto ?? datos.de ?? from);
 
-        console.log('📱 Nuevo mensaje WhatsApp:', webhook.datos);
+        console.log('📱 Nuevo mensaje WhatsApp:', { from, texto: texto?.slice(0, 50), phone_number_id: datos.phone_number_id });
 
-        await this.asegurarSolicitudDesdeWebhook('WhatsApp', conversacionId, nombreContacto || conversacionId);
+        // Multi-sucursal: enrutar por phone_number_id → sucursal
+        const phoneNumberId = datos.phone_number_id ? String(datos.phone_number_id) : '';
+        const sucursal = phoneNumberId ? await this.sucursalRepo.findByWhatsAppPhoneNumberId(phoneNumberId) : null;
 
-        let conversacion = this.conversaciones.get(conversacionId);
-        if (!conversacion) {
-          conversacion = {
-            id: conversacionId,
-            canal: 'whatsapp',
-            canalId: conversacionId,
-            telefono: conversacionId,
-            nombreContacto: nombreContacto || conversacionId,
-            ultimoMensaje: texto,
-            ultimoMensajeFecha: new Date(),
-            estado: 'activa',
-            mensajesNoLeidos: 1,
-            etiquetas: ['Nueva']
-          };
-          this.conversaciones.set(conversacionId, conversacion);
-        } else {
-          conversacion.ultimoMensaje = texto;
-          conversacion.ultimoMensajeFecha = new Date();
-          conversacion.mensajesNoLeidos = (conversacion.mensajesNoLeidos ?? 0) + 1;
+        await this.asegurarSolicitudDesdeWebhook('WhatsApp', from, nombreContacto || from);
+
+        // Guardar en conversaciones_matrix (con sucursal_id si hay sucursal para este número)
+        const { conversacionId, mensaje } = await this.conversacionRepo.asegurarConversacionYMensaje({
+          canal: 'WhatsApp',
+          canalId: from,
+          contenido: texto,
+          tipoMensaje: 'texto',
+          nombreContacto: nombreContacto || from,
+          sucursalId: sucursal?.id,
+        });
+
+        try {
+          const socket = SocketService.getInstance();
+          socket.emitNuevoMensaje(conversacionId, {
+            id: mensaje.id,
+            contenido: mensaje.contenido,
+            tipo: mensaje.tipoMensaje,
+            esDeKeila: false,
+            timestamp: mensaje.fechaEnvio,
+          });
+          // Enrutar solo a agentes de esta sucursal (sala sucursal:id)
+          if (sucursal?.id) {
+            socket.emitToSucursal(sucursal.id, 'matrix:conversacion:actualizada', { conversacionId });
+          } else {
+            socket.broadcast('matrix:conversacion:actualizada', { conversacionId });
+          }
+        } catch {
+          /* Socket no inicializado */
         }
       }
 
@@ -1001,6 +1008,9 @@ export class MatrixController {
         return;
       }
 
+      const existe = await this.verificarAccesoConversacion(req, res, id);
+      if (!existe) return;
+
       await this.conversacionRepo.actualizarPrioridad(id, prioridad);
 
       res.json({
@@ -1033,6 +1043,9 @@ export class MatrixController {
         });
         return;
       }
+
+      const existe = await this.verificarAccesoConversacion(req, res, id);
+      if (!existe) return;
 
       await this.conversacionRepo.asignar(id, usuarioId);
 

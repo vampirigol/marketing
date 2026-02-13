@@ -46,6 +46,8 @@ export interface Cita {
   especialidad: string;
   medicoAsignado?: string;
   doctor?: string;
+  /** MEDICAL = consulta normal; SPIRITUAL = Cuidados Espirituales (violeta en calendario) */
+  appointmentType?: 'MEDICAL' | 'SPIRITUAL';
   estado: 
     | 'Agendada'
     | 'Pendiente_Confirmacion'

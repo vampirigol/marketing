@@ -16,6 +16,8 @@ export interface Cita {
   tipoConsulta: 'Primera_Vez' | 'Subsecuente' | 'Urgencia';
   especialidad: string;
   medicoAsignado?: string;
+  /** MEDICAL = consulta normal; SPIRITUAL = Cuidados Espirituales (calendario en violeta) */
+  appointmentType?: 'MEDICAL' | 'SPIRITUAL';
   
   // Estado
   estado: 'Agendada' | 'Confirmada' | 'En_Consulta' | 'Atendida' | 'Cancelada' | 'No_Asistio';
@@ -67,6 +69,7 @@ export class CitaEntity implements Cita {
   tipoConsulta!: 'Primera_Vez' | 'Subsecuente' | 'Urgencia';
   especialidad!: string;
   medicoAsignado?: string;
+  appointmentType?: 'MEDICAL' | 'SPIRITUAL';
   estado!: 'Agendada' | 'Confirmada' | 'En_Consulta' | 'Atendida' | 'Cancelada' | 'No_Asistio';
   motivoCancelacion?: string;
   esPromocion!: boolean;

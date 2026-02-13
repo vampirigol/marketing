@@ -11,7 +11,8 @@ import {
   Plus,
   Edit,
   DollarSign,
-  AlertCircle
+  AlertCircle,
+  Heart
 } from 'lucide-react';
 import { Paciente } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +22,8 @@ import { HistorialPacienteModal } from './HistorialPacienteModal';
 import { RegistrarPagoModal } from './RegistrarPagoModal';
 import { pacientesService } from '@/lib/pacientes.service';
 import { citasService } from '@/lib/citas.service';
+import { cuidadosEspiritualesService } from '@/lib/cuidados-espirituales.service';
+import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 
 interface PatientProfileProps {
   pacienteId?: string;
@@ -46,8 +49,12 @@ export function PatientProfile({
   const [nuevaNota, setNuevaNota] = useState('');
   
   const [modalAgendarCita, setModalAgendarCita] = useState(false);
+  const [modalAgendarTipo, setModalAgendarTipo] = useState<'MEDICAL' | 'SPIRITUAL'>('MEDICAL');
   const [modalHistorial, setModalHistorial] = useState(false);
   const [modalRegistrarPago, setModalRegistrarPago] = useState(false);
+  const [cuidadosEspiritualesAttended, setCuidadosEspiritualesAttended] = useState(false);
+  const [cuidadosEspiritualesLoading, setCuidadosEspiritualesLoading] = useState(false);
+  const [kpiCuidadosEspirituales, setKpiCuidadosEspirituales] = useState<number | null>(null);
 
   useEffect(() => {
     if (!pacienteId) {
@@ -84,6 +91,32 @@ export function PatientProfile({
     };
     cargar();
   }, [pacienteId]);
+
+  // Cargar estado Cuidados Espirituales y KPI
+  useEffect(() => {
+    if (!pacienteId) {
+      setCuidadosEspiritualesAttended(false);
+      setKpiCuidadosEspirituales(null);
+      return;
+    }
+    cuidadosEspiritualesService.estadoPaciente(pacienteId).then((r) => setCuidadosEspiritualesAttended(r.hasAttended)).catch(() => setCuidadosEspiritualesAttended(false));
+    cuidadosEspiritualesService.kpi().then(setKpiCuidadosEspirituales).catch(() => setKpiCuidadosEspirituales(null));
+  }, [pacienteId]);
+
+  const handleMarkCuidadosEspirituales = async () => {
+    if (!pacienteId || cuidadosEspiritualesLoading || cuidadosEspiritualesAttended) return;
+    setCuidadosEspiritualesLoading(true);
+    try {
+      await cuidadosEspiritualesService.marcarAsistencia(pacienteId);
+      setCuidadosEspiritualesAttended(true);
+      const total = await cuidadosEspiritualesService.kpi();
+      setKpiCuidadosEspirituales(total);
+    } catch (e) {
+      console.error('Error marcando asistencia Cuidados Espirituales:', e);
+    } finally {
+      setCuidadosEspiritualesLoading(false);
+    }
+  };
 
   // Escuchar cita agendada para refrescar historial
   useEffect(() => {
@@ -256,7 +289,7 @@ export function PatientProfile({
         </p>
         <div className="grid grid-cols-1 gap-2">
           <Button
-            onClick={() => setModalAgendarCita(true)}
+            onClick={() => { setModalAgendarTipo('MEDICAL'); setModalAgendarCita(true); }}
             className="w-full justify-start"
             size="sm"
           >
@@ -302,6 +335,46 @@ export function PatientProfile({
             Consentimiento OK
           </Badge>
         </div>
+      </div>
+
+      {/* Servicios Adicionales - Cuidados Espirituales */}
+      <div className="p-4 border-b border-gray-200">
+        <p className="text-xs font-semibold text-gray-600 uppercase mb-3">
+          Servicios Adicionales
+        </p>
+        <Card className="bg-purple-50 border-purple-200">
+          <CardHeader className="pb-2 text-sm font-semibold text-purple-900 flex items-center gap-2">
+            <Heart className="w-4 h-4" />
+            Cuidados Espirituales
+          </CardHeader>
+          <CardContent className="pt-0 space-y-2">
+            {kpiCuidadosEspirituales !== null && (
+              <p className="text-xs text-purple-700">
+                {kpiCuidadosEspirituales} atendidos en total
+              </p>
+            )}
+            <Button
+              onClick={handleMarkCuidadosEspirituales}
+              disabled={cuidadosEspiritualesLoading || cuidadosEspiritualesAttended}
+              className={cuidadosEspiritualesAttended ? 'bg-green-500 hover:bg-green-600 text-white w-full' : 'bg-purple-600 hover:bg-purple-700 text-white w-full'}
+            >
+              {cuidadosEspiritualesLoading
+                ? 'Registrando...'
+                : cuidadosEspiritualesAttended
+                  ? 'Asistencia Registrada'
+                  : 'Marcar Asistencia'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full border border-purple-300 text-purple-700 hover:bg-purple-100"
+              onClick={() => { setModalAgendarTipo('SPIRITUAL'); setModalAgendarCita(true); }}
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Agendar cita Cuidados Espirituales
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Historial de Citas */}
@@ -499,6 +572,7 @@ export function PatientProfile({
         onClose={() => setModalAgendarCita(false)}
         pacienteId={paciente.id}
         pacienteNombre={paciente.nombreCompleto}
+        appointmentType={modalAgendarTipo}
       />
 
       <HistorialPacienteModal

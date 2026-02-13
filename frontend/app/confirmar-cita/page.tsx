@@ -1,12 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { citasService } from "@/lib/citas.service";
 import Link from "next/link";
 
 export default function ConfirmarCitaPage() {
+  return (
+    <Suspense fallback={<div>Confirmando su cita...</div>}>
+      <SearchParamsWrapper>
+        {(searchParams) => <ConfirmarCitaPageContent searchParams={searchParams} />}
+      </SearchParamsWrapper>
+    </Suspense>
+  );
+}
+
+function SearchParamsWrapper({ children }: { children: (searchParams: ReturnType<typeof useSearchParams>) => JSX.Element }) {
   const searchParams = useSearchParams();
+  return children(searchParams);
+}
+
+
+function ConfirmarCitaPageContent({ searchParams }: { searchParams: ReturnType<typeof useSearchParams> }) {
   const token = searchParams.get("token") ?? "";
   const [estado, setEstado] = useState<"cargando" | "ok" | "error">("cargando");
   const [mensaje, setMensaje] = useState("");

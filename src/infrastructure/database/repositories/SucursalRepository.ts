@@ -2,6 +2,13 @@ import { Pool } from 'pg';
 import { SucursalEntity, Sucursal } from '../../../core/entities/Sucursal';
 import Database from '../Database';
 
+/** Configuración WhatsApp por sucursal (Meta Cloud API) */
+export interface WhatsappConfigSucursal {
+  phoneNumberId: string;
+  accessToken: string;
+  wabaId?: string;
+}
+
 export interface SucursalRepository {
   crear(sucursal: Sucursal): Promise<SucursalEntity>;
   obtenerPorId(id: string): Promise<SucursalEntity>;
@@ -9,6 +16,8 @@ export interface SucursalRepository {
   obtenerActivas(): Promise<SucursalEntity[]>;
   actualizar(sucursal: SucursalEntity): Promise<SucursalEntity>;
   buscarPorCodigo(codigo: string): Promise<SucursalEntity | null>;
+  /** Busca la sucursal que tiene configurado este phone_number_id de WhatsApp (para enrutar webhooks). */
+  findByWhatsAppPhoneNumberId(phoneNumberId: string): Promise<SucursalEntity | null>;
 }
 
 export class SucursalRepositoryPostgres implements SucursalRepository {
@@ -119,6 +128,13 @@ export class SucursalRepositoryPostgres implements SucursalRepository {
       return null;
     }
 
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async findByWhatsAppPhoneNumberId(phoneNumberId: string): Promise<SucursalEntity | null> {
+    const query = `SELECT * FROM sucursales WHERE whatsapp_config IS NOT NULL AND whatsapp_config->>'phoneNumberId' = $1 AND activa = true LIMIT 1`;
+    const result = await this.pool.query(query, [phoneNumberId]);
+    if (result.rows.length === 0) return null;
     return this.mapToEntity(result.rows[0]);
   }
 
@@ -256,5 +272,9 @@ export class InMemorySucursalRepository implements SucursalRepository {
   async buscarPorCodigo(codigo: string): Promise<SucursalEntity | null> {
     const sucursal = Array.from(this.sucursales.values()).find(s => s.codigo === codigo);
     return sucursal || null;
+  }
+
+  async findByWhatsAppPhoneNumberId(_phoneNumberId: string): Promise<SucursalEntity | null> {
+    return null;
   }
 }

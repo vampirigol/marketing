@@ -355,19 +355,21 @@ Estamos para ayudarte.`;
     tipo: 'mensaje' | 'estado' | 'desconocido';
     datos: Record<string, unknown>;
   } {
-    // TODO: Implementar procesamiento completo de webhooks
-    // Por ahora retorna estructura básica
-    
     const payloadAny = payload as any;
-    if (payloadAny.entry?.[0]?.changes?.[0]?.value?.messages) {
-      const mensaje = payloadAny.entry[0].changes[0].value.messages[0];
+    const value = payloadAny.entry?.[0]?.changes?.[0]?.value;
+    if (value?.messages) {
+      const mensaje = value.messages[0];
+      const metadata = value.metadata || {};
       return {
         tipo: 'mensaje',
         datos: {
           de: mensaje.from,
           texto: mensaje.text?.body || '',
-          timestamp: mensaje.timestamp
-        }
+          timestamp: mensaje.timestamp,
+          nombreContacto: value.contacts?.[0]?.profile?.name,
+          /** ID del número de teléfono de WhatsApp (Meta). Usado para enrutar multi-sucursal. */
+          phone_number_id: metadata.phone_number_id,
+        },
       };
     }
 

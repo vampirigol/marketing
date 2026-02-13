@@ -414,7 +414,9 @@ function VistaMes({ citas, fecha, onFechaChange }: {
                     <div
                       key={cita.id}
                       className={`text-xs px-1.5 py-0.5 rounded truncate ${
-                        cita.estado === 'Confirmada'
+                        cita.appointmentType === 'SPIRITUAL'
+                          ? 'bg-violet-100 text-violet-700'
+                          : cita.estado === 'Confirmada'
                           ? 'bg-green-100 text-green-700'
                           : cita.estado === 'Pendiente_Confirmacion'
                           ? 'bg-amber-100 text-amber-700'

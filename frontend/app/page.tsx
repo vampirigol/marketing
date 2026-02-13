@@ -1,5 +1,6 @@
-import Image from 'next/image';
 import Link from 'next/link';
+
+export const dynamic = 'force-dynamic';
 
 const modules = [
   {
@@ -75,13 +76,13 @@ export default function Home() {
 
         <div className="mt-8 flex flex-col items-center gap-6 lg:flex-row lg:gap-10">
           <div className="flex h-28 w-28 items-center justify-center rounded-3xl border border-slate-200/70 bg-white/90 p-3 shadow-xl backdrop-blur md:h-32 md:w-32">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/logo-clinicas.png"
               alt="Clínicas Adventistas"
               className="h-full w-full object-contain"
               width={128}
               height={128}
-              priority
             />
           </div>
           <div className="space-y-4 text-center lg:text-left">
@@ -126,7 +127,7 @@ export default function Home() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
-          API Backend en http://localhost:3000
+          API Backend en http://localhost:3001
         </div>
       </div>
     </div>

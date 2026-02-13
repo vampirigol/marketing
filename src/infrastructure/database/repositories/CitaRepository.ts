@@ -70,6 +70,7 @@ export interface CitaListRow {
   pacienteTelefono?: string;
   pacienteEmail?: string;
   sucursalNombre: string;
+  appointmentType?: 'MEDICAL' | 'SPIRITUAL';
 }
 
 export class CitaRepositoryPostgres implements CitaRepository {
@@ -80,14 +81,15 @@ export class CitaRepositoryPostgres implements CitaRepository {
   }
 
   async crear(cita: Cita): Promise<CitaEntity> {
+    const appointmentType = (cita as any).appointmentType ?? 'MEDICAL';
     const query = `
       INSERT INTO citas (
         paciente_id, sucursal_id, fecha_cita, hora_cita, duracion_minutos,
         tipo_consulta, especialidad, medico_asignado, estado, es_promocion,
         fecha_promocion, reagendaciones, costo_consulta, monto_abonado,
         saldo_pendiente, creado_por, notas, telemedicina_link, preconsulta, documentos,
-        token_confirmacion
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+        token_confirmacion, appointment_type
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *
     `;
 
@@ -113,6 +115,7 @@ export class CitaRepositoryPostgres implements CitaRepository {
       cita.preconsulta,
       cita.documentos,
       (cita as any).tokenConfirmacion ?? null,
+      appointmentType,
     ];
 
     const result = await this.pool.query(query, values);
@@ -293,6 +296,7 @@ export class CitaRepositoryPostgres implements CitaRepository {
       pacienteTelefono: row.paciente_telefono,
       pacienteEmail: row.paciente_email,
       sucursalNombre: row.sucursal_nombre ?? 'Sucursal',
+      appointmentType: row.appointment_type === 'SPIRITUAL' ? 'SPIRITUAL' : 'MEDICAL',
     }));
 
     return { citas, total };
@@ -409,6 +413,7 @@ export class CitaRepositoryPostgres implements CitaRepository {
       tipoConsulta: row.tipo_consulta,
       especialidad: row.especialidad,
       medicoAsignado: row.medico_asignado,
+      appointmentType: (row.appointment_type === 'SPIRITUAL' ? 'SPIRITUAL' : 'MEDICAL') as 'MEDICAL' | 'SPIRITUAL',
       estado: row.estado,
       motivoCancelacion: row.motivo_cancelacion,
       esPromocion: row.es_promocion,

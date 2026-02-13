@@ -17,9 +17,16 @@ export default function Sidebar() {
     <aside className="w-[340px] bg-[#F0F2F5] flex flex-col border-r border-gray-200 h-full">
       {/* Cabecera */}
       <div className="flex items-center p-4">
-        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-2">
-          {/* Avatar usuario actual */}
-          <Image src="/avatar.png" alt="avatar" width={32} height={32} className="w-8 h-8 rounded-full" />
+        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-2 overflow-hidden">
+          {/* Avatar usuario actual generado dinámicamente */}
+          <Image
+            src="https://ui-avatars.com/api/?name=Agente&background=0084FF&color=fff&size=128"
+            alt="avatar"
+            width={32}
+            height={32}
+            className="w-8 h-8 rounded-full"
+            unoptimized
+          />
         </div>
         <span className="text-xs text-green-500 font-semibold">Online</span>
         <button className="ml-auto bg-[#0084FF] text-white rounded-full p-2 shadow-md">
@@ -46,7 +53,14 @@ export default function Sidebar() {
         {/* Aquí se mapearán ConversationCard */}
         {/* Ejemplo */}
         <div className="bg-white rounded-xl p-3 mb-2 flex items-center shadow-sm relative">
-          <Image src="/client-avatar.png" alt="avatar" width={32} height={32} className="w-8 h-8 rounded-full mr-2" />
+          <Image
+            src="https://ui-avatars.com/api/?name=Cliente&background=F0F2F5&color=0084FF&size=128"
+            alt="avatar"
+            width={32}
+            height={32}
+            className="w-8 h-8 rounded-full mr-2"
+            unoptimized
+          />
           <span className="absolute top-0 left-6 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center text-white text-xs">
             <MessageSquare className="w-3 h-3" />
           </span>

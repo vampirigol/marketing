@@ -68,6 +68,14 @@ router.get('/doctor/rango', autenticar, requierePermiso('citas', 'leer'), (req, 
 );
 
 /**
+ * @route GET /api/citas/doctor-rango
+ * @desc Alias: mismo que /doctor/rango (citas por doctor y rango de fechas)
+ */
+router.get('/doctor-rango', autenticar, requierePermiso('citas', 'leer'), (req, res) =>
+  controller.obtenerPorDoctorYRango(req, res)
+);
+
+/**
  * @route GET /api/citas/rango
  * @desc Obtener citas por rango de fechas (todas las sucursales o una específica)
  * @query fechaInicio - Fecha inicio (YYYY-MM-DD)

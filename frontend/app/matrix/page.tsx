@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import MatrixWebSocketService from '@/lib/matrix-websocket.service';
@@ -18,8 +18,23 @@ import { obtenerLeadsCitasLocales } from '@/lib/citas-leads.service';
 import type { SolicitudContacto } from '@/types/contacto';
 import { guardarCanalesConectados } from '@/components/matrix/RedesSocialesModal';
 
+
 export default function MatrixPage() {
+  return (
+    <Suspense fallback={<div>Cargando Matrix...</div>}>
+      <SearchParamsWrapper>
+        {(searchParams) => <MatrixPageContent searchParams={searchParams} />}
+      </SearchParamsWrapper>
+    </Suspense>
+  );
+}
+
+function SearchParamsWrapper({ children }: { children: (searchParams: ReturnType<typeof useSearchParams>) => JSX.Element }) {
   const searchParams = useSearchParams();
+  return children(searchParams);
+}
+
+function MatrixPageContent({ searchParams }: { searchParams: ReturnType<typeof useSearchParams> }) {
   const [conversaciones, setConversaciones] = useState<Conversacion[]>([]);
   const [conversacionActiva, setConversacionActiva] = useState<string | undefined>();
   const [vistaActual, setVistaActual] = useState<'inbox' | 'kanban'>('inbox');
@@ -174,61 +189,15 @@ export default function MatrixPage() {
         });
         const start = (options.page - 1) * options.limit;
         const paginados = citasLeads.slice(start, start + options.limit);
-        return {
-          leads: paginados,
-          hasMore: start + options.limit < citasLeads.length,
-          total: citasLeads.length,
-        };
+        return paginados;
       }
-
-      if (leadsFuente.length) {
-        const leadsFiltrados = leadsFuente.filter((lead) => lead.status === options.status);
-        const start = (options.page - 1) * options.limit;
-        const paginados = leadsFiltrados.slice(start, start + options.limit);
-        return {
-          leads: paginados,
-          hasMore: start + options.limit < leadsFiltrados.length,
-          total: leadsFiltrados.length,
-        };
-      }
-
-      return { leads: [], hasMore: false, total: 0 };
+      // Aquí puedes agregar lógica para otros status si es necesario
+      return [];
     } catch (error) {
-      console.error('Error al cargar leads:', error);
-      return { leads: [], hasMore: false, total: 0 };
+      console.error('Error al cargar leads paginados:', error);
+      return [];
     }
-  }, [leadsFuente]);
-
-  const handleSelectConversacion = (id: string) => {
-    setConversacionActiva(id);
-  };
-
-  // Cargar mensajes y marcar como leída al seleccionar conversación
-  useEffect(() => {
-    if (!conversacionActiva) return;
-    api
-      .get(`/matrix/conversaciones/${conversacionActiva}`)
-      .then((res) => {
-        const conv = res.data?.conversacion;
-        if (!conv) return;
-        const mensajes = (conv.mensajes || []).map((m: Record<string, unknown>) => ({
-          id: m.id,
-          conversacionId: m.conversacionId || conversacionActiva,
-          contenido: m.contenido,
-          tipo: (m.tipo || 'texto') as Mensaje['tipo'],
-          esDeKeila: Boolean(m.esDeKeila),
-          estado: (m.estado || 'enviado') as Mensaje['estado'],
-          fechaHora: m.fechaHora ? new Date(m.fechaHora as string) : new Date(),
-        }));
-        setConversaciones((prev) =>
-          prev.map((c) =>
-            c.id === conversacionActiva ? { ...c, mensajes, mensajesNoLeidos: 0 } : c
-          )
-        );
-        api.put(`/matrix/conversaciones/${conversacionActiva}/leer`).catch(() => {});
-      })
-      .catch(() => {});
-  }, [conversacionActiva]);
+  }, []);
 
   const handleEnviarMensaje = async (contenido: string) => {
     if (!conversacionActiva) return;
@@ -266,6 +235,10 @@ export default function MatrixPage() {
       console.error('Error al enviar mensaje:', error);
     }
   };
+
+  const handleSelectConversacion = useCallback((id: string | undefined) => {
+    setConversacionActiva(id);
+  }, []);
 
   const conversacionSeleccionada = conversaciones.find(c => c.id === conversacionActiva);
   const pacienteId = conversacionSeleccionada?.pacienteId;

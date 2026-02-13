@@ -20,9 +20,9 @@ interface FacebookResponse {
 }
 
 export class FacebookService {
-  private readonly apiUrl: string;
-  private readonly pageAccessToken: string;
-  private readonly apiVersion: string = 'v18.0';
+  public readonly apiUrl: string;
+  public readonly pageAccessToken: string;
+  public readonly apiVersion: string = 'v18.0';
 
   constructor() {
     this.apiUrl = process.env.FACEBOOK_API_URL || 'https://graph.facebook.com';

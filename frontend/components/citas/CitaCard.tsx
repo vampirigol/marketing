@@ -64,12 +64,14 @@ export function CitaCard({ cita, onClick, vista = 'lista', onQuickConfirm, onQui
 
   const estadoColor = getEstadoColor(cita.estado);
   const estadoIcon = getEstadoIcon(cita.estado);
+  const esCuidadosEspirituales = cita.appointmentType === 'SPIRITUAL';
+  const colorEspiritual = 'border-l-violet-500 bg-violet-50/80 text-violet-800';
 
   // Vista compacta para semana
   if (vista === 'semana') {
     return (
       <div
-        className={`text-xs p-1.5 rounded border-l-2 cursor-pointer hover:shadow-sm transition-all ${estadoColor}`}
+        className={`text-xs p-1.5 rounded border-l-2 cursor-pointer hover:shadow-sm transition-all ${esCuidadosEspirituales ? 'border-l-violet-500 bg-violet-50 text-violet-700' : estadoColor}`}
       >
         <div className="font-medium truncate">{cita.horaCita}</div>
         <div className="text-[10px] opacity-80 truncate">{cita.tipoConsulta}</div>
@@ -83,7 +85,7 @@ export function CitaCard({ cita, onClick, vista = 'lista', onQuickConfirm, onQui
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
-      className={`group relative p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-lg transition-all duration-200 ${estadoColor} bg-white ${isHovered ? 'scale-[1.02]' : ''}`}
+      className={`group relative p-3 rounded-lg border-l-4 cursor-pointer hover:shadow-lg transition-all duration-200 ${esCuidadosEspirituales ? colorEspiritual : `${estadoColor} bg-white`} ${isHovered ? 'scale-[1.02]' : ''}`}
     >
       {/* Quick Actions - Aparecen en hover */}
       {isHovered && vista === 'lista' && (

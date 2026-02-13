@@ -17,6 +17,8 @@ interface AgendarCitaModalProps {
   pacienteNombre?: string;
   /** Si se proporciona, se llama al crear la cita (p. ej. para vincular lista de espera) */
   onCitaCreada?: (cita: { id: string; pacienteId?: string }) => void;
+  /** SPIRITUAL = Cuidados Espirituales (se muestra en violeta en el calendario) */
+  appointmentType?: 'MEDICAL' | 'SPIRITUAL';
 }
 
 type Paso = 'catalogo' | 'disponibilidad' | 'datosPaciente' | 'confirmacion';
@@ -59,6 +61,7 @@ export function AgendarCitaModal({
   pacienteId,
   pacienteNombre,
   onCitaCreada,
+  appointmentType = 'MEDICAL',
 }: AgendarCitaModalProps) {
   const [paso, setPaso] = useState<Paso>('catalogo');
   const [datosCatalogo, setDatosCatalogo] = useState<DatosCatalogo | null>(null);
@@ -137,12 +140,13 @@ export function AgendarCitaModal({
         fechaCita: disponibilidad.fecha,
         horaCita: disponibilidad.hora,
         tipoConsulta: 'Primera_Vez',
-        especialidad: datosCatalogo!.especialidadNombre || 'Medicina General',
+        especialidad: appointmentType === 'SPIRITUAL' ? 'Cuidados Espirituales' : (datosCatalogo!.especialidadNombre || 'Medicina General'),
         medicoAsignado: datosCatalogo!.doctorNombre,
         esPromocion: Boolean(datosCatalogo!.promocionAplicada),
         codigoPromocion: datosCatalogo!.promocionAplicada ? 'PRIMERA_VEZ_2026' : undefined,
         creadoPor: 'portal',
         notas: datosCatalogo?.promocionAplicada ? 'Promoción aplicada' : undefined,
+        ...(appointmentType === 'SPIRITUAL' && { appointmentType: 'SPIRITUAL' }),
       };
 
       const cita = await citasService.crear(payload);

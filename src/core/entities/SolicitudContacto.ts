@@ -25,6 +25,15 @@ export type PreferenciaContacto =
   | 'Telefono'
   | 'Email';
 
+/** Columna del Kanban Contact Center (máquina de estados del lead). */
+export type LeadStatus =
+  | 'LEADS_WHATSAPP'  // Entrada inicial
+  | 'AGENDADO'        // Tiene cita futura
+  | 'CONFIRMADO'      // Cita confirmada -> KPI CONFIRMED_COUNT
+  | 'PAGADO_CERRADO'  // Pagado/cerrado -> KPI REVENUE
+  | 'REMARKETING'     // Leads para recuperar
+  | 'NO_ASISTIO';     // Automático: pasó fecha sin confirmar/atender
+
 export interface SolicitudContacto {
   id: string;
   
@@ -70,6 +79,11 @@ export interface SolicitudContacto {
   citaId?: string;
   /** Número de afiliado asignado al crear el lead (RCA-YYYY-NNNNN). */
   noAfiliacion?: string;
+
+  /** Columna Kanban Contact Center (Pipeline). */
+  leadStatus?: LeadStatus;
+  /** Incluido en lista de recuperación (ej. al marcar No Asistió). */
+  enListaRecovery?: boolean;
 }
 
 /**
@@ -105,6 +119,8 @@ export class SolicitudContactoEntity implements SolicitudContacto {
   crmResultado?: string;
   citaId?: string;
   noAfiliacion?: string;
+  leadStatus?: LeadStatus;
+  enListaRecovery?: boolean;
 
   constructor(data: SolicitudContacto) {
     this.id = data.id;
@@ -136,6 +152,8 @@ export class SolicitudContactoEntity implements SolicitudContacto {
     this.crmResultado = data.crmResultado;
     this.citaId = data.citaId;
     this.noAfiliacion = data.noAfiliacion;
+    this.leadStatus = data.leadStatus ?? 'LEADS_WHATSAPP';
+    this.enListaRecovery = data.enListaRecovery ?? false;
   }
 
   /**

@@ -6,6 +6,7 @@ export interface ConversacionResumen {
   canal: 'WhatsApp' | 'Facebook' | 'Instagram';
   canalId: string;
   pacienteId?: string;
+  sucursalId?: string;
   nombreContacto: string;
   ultimoMensaje?: string;
   fechaUltimoMensaje?: Date;
@@ -57,6 +58,8 @@ export interface ConversacionRepository {
     prioridad?: string;
     busqueda?: string;
     asignadoA?: string;
+    /** Si se pasa, solo se devuelven conversaciones de estas sucursales o sin sucursal (FB/IG). Contact_Center/Admin no pasan este filtro. */
+    sucursalIds?: string[];
   }): Promise<ConversacionResumen[]>;
   obtenerPorId(id: string): Promise<ConversacionResumen | null>;
   obtenerMensajes(conversacionId: string): Promise<Mensaje[]>;
@@ -72,14 +75,16 @@ export interface ConversacionRepository {
   obtenerPlantillas(usuarioId?: string): Promise<PlantillaRespuesta[]>;
   crearPlantilla(plantilla: Omit<PlantillaRespuesta, 'id' | 'usoCount' | 'fechaCreacion' | 'ultimaActualizacion'>): Promise<PlantillaRespuesta>;
   usarPlantilla(id: string): Promise<void>;
-  /** Crea/actualiza conversación y agrega mensaje entrante (desde webhook FB/IG). Retorna { conversacionId, mensaje }. */
+  /** Crea/actualiza conversación y agrega mensaje entrante (desde webhook FB/IG/WA). Retorna { conversacionId, mensaje }. Para WhatsApp multi-sucursal, pasar sucursalId. */
   asegurarConversacionYMensaje(params: {
-    canal: 'Facebook' | 'Instagram';
+    canal: 'Facebook' | 'Instagram' | 'WhatsApp';
     canalId: string;
     contenido: string;
     tipoMensaje?: 'texto' | 'imagen' | 'audio' | 'archivo' | 'video' | 'sistema';
     archivoUrl?: string;
     nombreContacto?: string;
+    /** Obligatorio para canal WhatsApp cuando hay multi-sucursal (enrutamiento por phone_number_id). */
+    sucursalId?: string;
   }): Promise<{ conversacionId: string; mensaje: Mensaje }>;
 }
 
@@ -96,6 +101,7 @@ export class ConversacionRepositoryPostgres implements ConversacionRepository {
     prioridad?: string;
     busqueda?: string;
     asignadoA?: string;
+    sucursalIds?: string[];
   }): Promise<ConversacionResumen[]> {
     let query = `
       SELECT 
@@ -110,6 +116,16 @@ export class ConversacionRepositoryPostgres implements ConversacionRepository {
     `;
     const values: any[] = [];
     let paramIndex = 1;
+
+    if (filtros.sucursalIds !== undefined) {
+      if (filtros.sucursalIds.length > 0) {
+        query += ` AND (c.sucursal_id IS NULL OR c.sucursal_id = ANY($${paramIndex}::uuid[]))`;
+        values.push(filtros.sucursalIds);
+        paramIndex++;
+      } else {
+        query += ` AND c.sucursal_id IS NULL`;
+      }
+    }
 
     if (filtros.canal) {
       query += ` AND c.canal = $${paramIndex}`;
@@ -161,7 +177,7 @@ export class ConversacionRepositoryPostgres implements ConversacionRepository {
   async obtenerPorId(id: string): Promise<ConversacionResumen | null> {
     const query = `
       SELECT 
-        c.id, c.canal, c.canal_id, c.paciente_id,
+        c.id, c.canal, c.canal_id, c.paciente_id, c.sucursal_id,
         COALESCE(p.nombre_completo, c.nombre_contacto, c.canal_id) as nombre_contacto,
         c.ultimo_mensaje, c.ultimo_mensaje_fecha, c.mensajes_no_leidos,
         c.estado, c.prioridad, c.etiquetas, c.asignado_a,
@@ -178,6 +194,7 @@ export class ConversacionRepositoryPostgres implements ConversacionRepository {
       canal: row.canal,
       canalId: row.canal_id,
       pacienteId: row.paciente_id,
+      sucursalId: row.sucursal_id,
       nombreContacto: row.nombre_contacto,
       ultimoMensaje: row.ultimo_mensaje,
       fechaUltimoMensaje: row.ultimo_mensaje_fecha,
@@ -388,27 +405,41 @@ export class ConversacionRepositoryPostgres implements ConversacionRepository {
   }
 
   async asegurarConversacionYMensaje(params: {
-    canal: 'Facebook' | 'Instagram';
+    canal: 'Facebook' | 'Instagram' | 'WhatsApp';
     canalId: string;
     contenido: string;
     tipoMensaje?: 'texto' | 'imagen' | 'audio' | 'archivo' | 'video' | 'sistema';
     archivoUrl?: string;
     nombreContacto?: string;
+    sucursalId?: string;
   }): Promise<{ conversacionId: string; mensaje: Mensaje }> {
-    const { canal, canalId, contenido, tipoMensaje = 'texto', archivoUrl, nombreContacto } = params;
+    const { canal, canalId, contenido, tipoMensaje = 'texto', archivoUrl, nombreContacto, sucursalId } = params;
     const client = await this.pool.connect();
 
     try {
-      // 1. Insertar o obtener conversación (UPSERT); actualizar nombre si llega de Meta
-      const upsert = await client.query(
-        `INSERT INTO conversaciones_matrix (canal, canal_id, nombre_contacto)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (canal, canal_id) DO UPDATE SET
-           nombre_contacto = COALESCE(EXCLUDED.nombre_contacto, conversaciones_matrix.nombre_contacto),
-           canal = EXCLUDED.canal
-         RETURNING id`,
-        [canal, canalId, nombreContacto || null]
-      );
+      // 1. Insertar o obtener conversación (UPSERT). WhatsApp multi-sucursal usa (canal, canal_id, sucursal_id); FB/IG usan (canal, canal_id).
+      const isWhatsAppConSucursal = canal === 'WhatsApp' && sucursalId;
+      let upsert;
+      if (isWhatsAppConSucursal) {
+        upsert = await client.query(
+          `INSERT INTO conversaciones_matrix (canal, canal_id, nombre_contacto, sucursal_id)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (canal, canal_id, sucursal_id) WHERE (canal = 'WhatsApp' AND sucursal_id IS NOT NULL) DO UPDATE SET
+             nombre_contacto = COALESCE(EXCLUDED.nombre_contacto, conversaciones_matrix.nombre_contacto)
+           RETURNING id`,
+          [canal, canalId, nombreContacto || null, sucursalId]
+        );
+      } else {
+        upsert = await client.query(
+          `INSERT INTO conversaciones_matrix (canal, canal_id, nombre_contacto, sucursal_id)
+           VALUES ($1, $2, $3, NULL)
+           ON CONFLICT (canal, canal_id) WHERE (canal <> 'WhatsApp' OR conversaciones_matrix.sucursal_id IS NULL) DO UPDATE SET
+             nombre_contacto = COALESCE(EXCLUDED.nombre_contacto, conversaciones_matrix.nombre_contacto),
+             canal = EXCLUDED.canal
+           RETURNING id`,
+          [canal, canalId, nombreContacto || null]
+        );
+      }
       const conversacionId = upsert.rows[0].id;
 
       // 2. Actualizar último mensaje y contador de no leídos

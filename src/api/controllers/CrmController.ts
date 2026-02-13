@@ -1,12 +1,25 @@
 import { Request, Response } from 'express';
-import { SolicitudContacto } from '../../core/entities/SolicitudContacto';
+import { SolicitudContacto, LeadStatus } from '../../core/entities/SolicitudContacto';
 import { solicitudContactoRepository } from '../../infrastructure/database/repositories/SolicitudContactoRepository';
 import { PacienteRepositoryPostgres } from '../../infrastructure/database/repositories/PacienteRepository';
 import { CitaRepositoryPostgres } from '../../infrastructure/database/repositories/CitaRepository';
+import { ContactCenterKpisRepositoryPostgres } from '../../infrastructure/database/repositories/ContactCenterKpisRepository';
+import Database from '../../infrastructure/database/Database';
+import { SurveyService } from '../../infrastructure/surveys/SurveyService';
+
+const COLUMNAS_PIPELINE: LeadStatus[] = [
+  'LEADS_WHATSAPP',
+  'AGENDADO',
+  'CONFIRMADO',
+  'PAGADO_CERRADO',
+  'REMARKETING',
+  'NO_ASISTIO',
+];
 
 export class CrmController {
   private pacienteRepository = new PacienteRepositoryPostgres();
   private citaRepository = new CitaRepositoryPostgres();
+  private kpisRepository = new ContactCenterKpisRepositoryPostgres();
 
   async obtenerLeads(req: Request, res: Response): Promise<void> {
     const { sucursal } = req.query;
@@ -55,12 +68,144 @@ export class CrmController {
         crmStatus: status,
         crmResultado: resultado,
       };
-      if (citaId !== undefined) updateData.citaId = citaId;
+      if (citaId !== undefined) {
+        updateData.citaId = citaId;
+        updateData.leadStatus = 'AGENDADO';
+      }
       if (sucursalId !== undefined) updateData.sucursalId = sucursalId;
       if (sucursalNombre !== undefined) updateData.sucursalNombre = sucursalNombre;
 
       const actualizado = await solicitudContactoRepository.actualizar(id, updateData);
 
+      res.json({ success: true, lead: mapSolicitudToLead(actualizado) });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({ success: false, error: errorMessage });
+    }
+  }
+
+  /**
+   * Lista de Recuperación (No Asistió): leads con última cita fallida para el módulo de Recepción.
+   * GET /api/crm/lista-recuperacion?sucursalId=
+   */
+  async obtenerListaRecuperacion(req: Request, res: Response): Promise<void> {
+    try {
+      const sucursalId = req.query.sucursalId as string | undefined;
+      const pool = Database.getInstance().getPool();
+      const query = `
+        SELECT 
+          s.id as lead_id,
+          s.nombre_completo,
+          s.telefono,
+          s.paciente_id as solicitud_paciente_id,
+          s.cita_id,
+          s.sucursal_id,
+          c.fecha_cita,
+          c.hora_cita,
+          c.paciente_id as cita_paciente_id
+        FROM solicitudes_contacto s
+        LEFT JOIN citas c ON c.id = s.cita_id
+        WHERE COALESCE(s.lead_status, 'LEADS_WHATSAPP') = 'NO_ASISTIO'
+        ${sucursalId ? 'AND s.sucursal_id = $1' : ''}
+        ORDER BY c.fecha_cita DESC NULLS LAST, c.hora_cita DESC NULLS LAST
+      `;
+      const result = await pool.query(query, sucursalId ? [sucursalId] : []);
+      const lista = result.rows.map((row: any) => ({
+        leadId: row.lead_id,
+        nombre: row.nombre_completo,
+        telefono: row.telefono,
+        ultimaCitaFallida: row.fecha_cita && row.hora_cita
+          ? {
+              fecha: row.fecha_cita,
+              hora: typeof row.hora_cita === 'string' ? row.hora_cita : row.hora_cita?.toString?.()?.slice(0, 5) || '',
+            }
+          : null,
+        pacienteId: row.cita_paciente_id || row.solicitud_paciente_id,
+        citaId: row.cita_id,
+        sucursalId: row.sucursal_id,
+      }));
+      res.json({ success: true, lista });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({ success: false, error: errorMessage });
+    }
+  }
+
+  /**
+   * Pipeline Kanban: columnas Leads WhatsApp, Agendado, Confirmado, Pagado/Cerrado, Remarketing, No Asistió.
+   * GET /api/crm/pipeline?sucursalId=
+   */
+  async obtenerPipeline(req: Request, res: Response): Promise<void> {
+    try {
+      const sucursalId = req.query.sucursalId as string | undefined;
+      const columnas: Record<string, ReturnType<typeof mapSolicitudToLead>[]> = {};
+      for (const col of COLUMNAS_PIPELINE) {
+        const list = await solicitudContactoRepository.obtenerPorLeadStatus(col, sucursalId);
+        columnas[col] = list.map(mapSolicitudToLead);
+      }
+      const hoy = new Date();
+      const kpisHoy: Record<string, { confirmedCount: number; revenue: number }> = {};
+      if (sucursalId) {
+        const kpi = await this.kpisRepository.obtenerPorSucursalYFecha(sucursalId, hoy);
+        kpisHoy[sucursalId] = kpi ?? { confirmedCount: 0, revenue: 0 };
+      }
+      res.json({ success: true, columnas, kpis: kpisHoy });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({ success: false, error: errorMessage });
+    }
+  }
+
+  /**
+   * Actualiza lead_status (columna Kanban). CONFIRMADO incrementa KPI confirmed_count; PAGADO_CERRADO incrementa revenue.
+   * PUT /api/crm/leads/:id/lead-status
+   */
+  async actualizarLeadStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { leadStatus, revenue, enListaRecovery } = req.body as {
+        leadStatus: LeadStatus;
+        revenue?: number;
+        enListaRecovery?: boolean;
+      };
+      if (!leadStatus || !COLUMNAS_PIPELINE.includes(leadStatus)) {
+        res.status(400).json({ success: false, error: 'leadStatus inválido. Valores: ' + COLUMNAS_PIPELINE.join(', ') });
+        return;
+      }
+      const solicitud = await solicitudContactoRepository.obtenerPorId(id);
+      if (!solicitud) {
+        res.status(404).json({ success: false, error: 'Lead no encontrado' });
+        return;
+      }
+      const actualizado = await solicitudContactoRepository.actualizarLeadStatus(
+        id,
+        leadStatus,
+        enListaRecovery
+      );
+      if (!actualizado) {
+        res.status(500).json({ success: false, error: 'Error actualizando lead_status' });
+        return;
+      }
+      if (leadStatus === 'CONFIRMADO' && solicitud.sucursalId) {
+        await this.kpisRepository.incrementarConfirmedCount(solicitud.sucursalId);
+      }
+      if (leadStatus === 'PAGADO_CERRADO' && solicitud.sucursalId) {
+        const monto = typeof revenue === 'number' && revenue >= 0 ? revenue : 0;
+        await this.kpisRepository.incrementarRevenue(solicitud.sucursalId, monto);
+      }
+      // Automatización: enviar encuesta de calidad al confirmar pago/cerrado ganado
+      if (leadStatus === 'PAGADO_CERRADO') {
+        try {
+          const surveyResult = await SurveyService.sendForLeadId(id);
+          if (surveyResult.enviado) {
+            console.log(`[CRM] Encuesta de calidad enviada por ${surveyResult.canal} al lead ${id}`);
+          } else if (surveyResult.error) {
+            console.warn(`[CRM] Encuesta de calidad no enviada (lead ${id}):`, surveyResult.error);
+          }
+        } catch (e) {
+          console.error('[CRM] Error enviando encuesta de calidad:', e);
+        }
+      }
       res.json({ success: true, lead: mapSolicitudToLead(actualizado) });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
@@ -253,6 +398,8 @@ function mapSolicitudToLead(solicitud: SolicitudContacto) {
     status,
     canal,
     etiquetas: [solicitud.motivo, solicitud.estado],
+    leadStatus: solicitud.leadStatus || 'LEADS_WHATSAPP',
+    enListaRecovery: solicitud.enListaRecovery ?? false,
     customFields: {
       Sucursal: solicitud.sucursalNombre,
       Servicio: solicitud.motivo,

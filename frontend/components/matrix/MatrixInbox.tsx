@@ -409,7 +409,7 @@ function ConversacionCard({
           {conversacion.avatar ? (
             conversacion.avatar === '/client-avatar.png' ? (
               <img
-                src="/client-avatar.png"
+                src="https://ui-avatars.com/api/?name=Cliente&background=F0F2F5&color=0084FF&size=128"
                 alt="Avatar"
                 width={40}
                 height={40}

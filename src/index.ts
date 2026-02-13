@@ -1,3 +1,4 @@
+// ...imports y configuración...
 import express from 'express';
 import http from 'http';
 import dotenv from 'dotenv';
@@ -7,6 +8,10 @@ import Database from './infrastructure/database/Database';
 import { ensureCalendarioTable } from './infrastructure/database/runMigrationCalendario';
 import { ensureCitasConfirmacionListaEspera } from './infrastructure/database/runMigrationCitas';
 import { ensureBrigadasTable } from './infrastructure/database/runMigrationBrigadas';
+import { ensureMultiSucursalWhatsApp } from './infrastructure/database/runMigrationMultiSucursalWhatsApp';
+import { ensureLeadPipeline } from './infrastructure/database/runMigrationLeadPipeline';
+import { ensureCuidadosEspirituales } from './infrastructure/database/runMigrationCuidadosEspirituales';
+import { ensureSucursalesCatalogoCompleto } from './infrastructure/database/runMigrationSucursalesCatalogo';
 
 import routes from './api/routes';
 import { MatrixController } from './api/controllers/MatrixController';
@@ -174,6 +179,10 @@ const startServer = async () => {
         await ensureCalendarioTable();
         await ensureCitasConfirmacionListaEspera();
         await ensureBrigadasTable();
+        await ensureMultiSucursalWhatsApp();
+        await ensureLeadPipeline();
+        await ensureCuidadosEspirituales();
+        await ensureSucursalesCatalogoCompleto();
       } else {
         console.log('⚠️  Base de datos no disponible - Usando repositorios en memoria\n');
       }

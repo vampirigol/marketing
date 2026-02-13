@@ -8,7 +8,14 @@ export default function DetailsPanel() {
     <aside className="w-[340px] bg-white rounded-xl m-4 shadow-md flex flex-col">
       {/* Perfil del contacto */}
       <div className="flex flex-col items-center p-6">
-        <Image src="/client-avatar.png" alt="avatar" width={80} height={80} className="w-20 h-20 rounded-full mb-2" />
+        <Image
+          src="https://ui-avatars.com/api/?name=Cliente&background=F0F2F5&color=0084FF&size=256"
+          alt="avatar"
+          width={80}
+          height={80}
+          className="w-20 h-20 rounded-full mb-2"
+          unoptimized
+        />
         <div className="font-bold text-lg">Juan Pérez</div>
         <div className="text-xs text-gray-500">+52 555 123 4567</div>
         <div className="text-xs text-blue-600">juanperez@email.com</div>

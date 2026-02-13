@@ -23,6 +23,8 @@ import { BloqueoDoctorRepository } from '../../infrastructure/database/repositor
 import { RecordatoriosCitasRepository } from '../../infrastructure/database/repositories/RecordatoriosCitasRepository';
 import { SlotsReservadosRepository } from '../../infrastructure/database/repositories/SlotsReservadosRepository';
 import { NotificationService } from '../../infrastructure/notifications/NotificationService';
+import { ContactCenterKpisRepositoryPostgres } from '../../infrastructure/database/repositories/ContactCenterKpisRepository';
+import { SurveyService } from '../../infrastructure/surveys/SurveyService';
 
 export class CitaController {
   private repository: CitaRepositoryPostgres;
@@ -35,6 +37,7 @@ export class CitaController {
   private slotsRepo: SlotsReservadosRepository;
   private sucursalRepo: SucursalRepositoryPostgres;
   private notificationService: NotificationService;
+  private kpisRepo: ContactCenterKpisRepositoryPostgres;
 
   constructor() {
     this.repository = new CitaRepositoryPostgres();
@@ -47,6 +50,39 @@ export class CitaController {
     this.slotsRepo = new SlotsReservadosRepository();
     this.sucursalRepo = new SucursalRepositoryPostgres();
     this.notificationService = new NotificationService();
+    this.kpisRepo = new ContactCenterKpisRepositoryPostgres();
+  }
+
+  /**
+   * Sincroniza lead_status del pipeline cuando cambia el estado de la cita.
+   * Confirmada -> CONFIRMADO + KPI. No_Asistio -> NO_ASISTIO + lista recovery. Atendida -> PAGADO_CERRADO + REVENUE.
+   */
+  private async syncLeadStatusByCitaId(citaId: string, nuevoEstadoCita: string): Promise<void> {
+    try {
+      const leads = await solicitudContactoRepository.obtenerIdsPorCitaIds([citaId]);
+      if (leads.length === 0) return;
+      const solicitud = await solicitudContactoRepository.obtenerPorId(leads[0].id);
+      if (!solicitud?.sucursalId) return;
+      if (nuevoEstadoCita === 'Confirmada') {
+        await solicitudContactoRepository.actualizarLeadStatus(leads[0].id, 'CONFIRMADO');
+        await this.kpisRepo.incrementarConfirmedCount(solicitud.sucursalId);
+      } else if (nuevoEstadoCita === 'No_Asistio') {
+        await solicitudContactoRepository.actualizarLeadStatus(leads[0].id, 'NO_ASISTIO', true);
+      } else if (nuevoEstadoCita === 'Atendida') {
+        await solicitudContactoRepository.actualizarLeadStatus(leads[0].id, 'PAGADO_CERRADO');
+        await this.kpisRepo.incrementarRevenue(solicitud.sucursalId, 0);
+        try {
+          const surveyResult = await SurveyService.sendForLeadId(leads[0].id);
+          if (surveyResult.enviado) {
+            console.log(`[Cita] Encuesta de calidad enviada por ${surveyResult.canal} al lead ${leads[0].id}`);
+          }
+        } catch (e) {
+          console.warn('[Cita] Error enviando encuesta de calidad:', e);
+        }
+      }
+    } catch (e) {
+      console.warn('syncLeadStatusByCitaId:', e);
+    }
   }
 
   async crear(req: Request, res: Response): Promise<void> {
@@ -131,6 +167,7 @@ export class CitaController {
         duracionMinutos: sinHorario ? 0 : resultado.cita.duracionMinutos,
         notas: notasSinHorario,
         tokenConfirmacion,
+        ...(citaData.appointmentType && { appointmentType: citaData.appointmentType }),
       });
 
       await this.auditoriaRepository.registrar({
@@ -309,6 +346,7 @@ export class CitaController {
         preconsulta: citaData.preconsulta,
         documentos: citaData.documentos,
         tokenConfirmacion,
+        ...(citaData.appointmentType && { appointmentType: citaData.appointmentType }),
       });
 
       try {
@@ -1318,6 +1356,7 @@ export class CitaController {
         return;
       }
       const actualizada = await this.repository.actualizar(id, { estado: 'No_Asistio' });
+      await this.syncLeadStatusByCitaId(id, 'No_Asistio');
       await this.auditoriaRepository.registrar({
         entidad: 'cita',
         entidadId: id,
@@ -1603,6 +1642,7 @@ export class CitaController {
         res.status(404).json({ ok: false, error: 'Token no válido o cita ya confirmada/cancelada' });
         return;
       }
+      await this.syncLeadStatusByCitaId(cita.id, 'Confirmada');
       res.json({ ok: true, mensaje: 'Cita confirmada', citaId: cita.id });
     } catch (e) {
       console.error('confirmarPorToken', e);

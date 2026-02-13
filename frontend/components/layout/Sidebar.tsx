@@ -22,6 +22,7 @@ import {
   FileText,
   Activity,
   HeartPulse,
+  BookOpen,
 } from 'lucide-react';
 import { SUCURSALES } from '@/lib/doctores-data';
 
@@ -40,6 +41,7 @@ const navigation = [
   { name: 'Salud', href: '/salud', icon: Activity },
   { name: 'Auditoría', href: '/auditoria', icon: FileText },
   { name: 'Configuración', href: '/configuracion', icon: Settings },
+  { name: 'Manual CRM', href: '/manual', icon: BookOpen },
 ];
 
 export function Sidebar() {

@@ -29,90 +29,143 @@ interface WhatsAppMensaje {
 
 /** Payload de evento Facebook/Instagram Messenger */
 interface MetaMessagingEvent {
-  sender?: { id?: string };
-  message?: { mid?: string; text?: string };
-  timestamp?: number;
+  // ...definición de la interfaz aquí...
 }
 
-/** Payload de estado de mensaje */
-interface MetaStatusEvent {
-  id?: string;
-  status?: string;
-  timestamp?: number;
-}
+import { Request, Response } from 'express';
+import crypto from 'crypto';
+import Database from '../../infrastructure/database/Database';
+import { Server as SocketIOServer } from 'socket.io';
+
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.FACEBOOK_VERIFY_TOKEN || process.env.INSTAGRAM_VERIFY_TOKEN;
+const SIGNATURE_HEADER = 'x-hub-signature';
 
 export class WebhookController {
-  private citaRespuestaService = new CitaRespuestaWhatsAppService();
-  private whatsappService = new WhatsAppService();
-  private conversacionRepo = new ConversacionRepositoryPostgres();
+    private io: SocketIOServer;
 
-  /**
-   * Verifica el webhook en el proceso de configuración inicial
-   * GET /api/webhooks/whatsapp
-   * GET /api/webhooks/facebook
-   * GET /api/webhooks/instagram
-   */
-  verificarWebhook(req: Request, res: Response): void {
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-
-    const plataforma = req.path.includes('whatsapp') ? 'WHATSAPP' :
-                       req.path.includes('facebook') ? 'FACEBOOK' : 'INSTAGRAM';
-
-    const verifyToken = plataforma === 'WHATSAPP' ? process.env.WHATSAPP_VERIFY_TOKEN :
-                        plataforma === 'FACEBOOK' ? process.env.FACEBOOK_VERIFY_TOKEN :
-                        process.env.INSTAGRAM_VERIFY_TOKEN;
-
-    console.log(`[${plataforma} WEBHOOK] Verificación:`, { mode, token });
-
-    if (mode === 'subscribe' && token === verifyToken) {
-      console.log(`[${plataforma} WEBHOOK] ✅ Verificación exitosa`);
-      res.status(200).send(challenge as any);
-    } else {
-      console.error(`[${plataforma} WEBHOOK] ❌ Verificación fallida`);
-      res.status(403).send('Forbidden');
+    constructor(io: SocketIOServer) {
+      this.io = io;
     }
-  }
 
-  /**
-   * Recibe webhooks de WhatsApp Business API
-   * POST /api/webhooks/whatsapp
-   */
-  async recibirWebhookWhatsApp(req: Request, res: Response): Promise<void> {
-    try {
-      const signature = String(req.headers['x-hub-signature-256'] || '');
-      if (!this.verificarFirma(req, signature, String(process.env.META_APP_SECRET || ''))) {
-        console.error('[WHATSAPP WEBHOOK] ❌ Firma inválida');
-        res.status(403).send('Forbidden');
-        return;
+    // GET /api/meta/webhook (verificación de Meta)
+    verifyWebhook(req: Request, res: Response) {
+      const mode = req.query['hub.mode'];
+      const token = req.query['hub.verify_token'];
+      const challenge = req.query['hub.challenge'];
+      if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+        return res.status(200).send(challenge);
+      }
+      return res.status(403).send('Forbidden');
+    }
+
+    // POST /api/meta/webhook (recepción de mensajes)
+    async receiveWebhook(req: Request, res: Response) {
+      // Seguridad: Verificar firma X-Hub-Signature
+      const signature = req.headers[SIGNATURE_HEADER] as string;
+      if (signature && !this.verifySignature(req.rawBody, signature)) {
+        return res.status(401).send('Invalid signature');
       }
 
-      const { entry } = req.body;
-      console.log('[WHATSAPP WEBHOOK] 📩 Recibido:', JSON.stringify(entry, null, 2));
-
-      for (const cambio of entry || []) {
-        for (const value of cambio.changes || []) {
-          if (value.value?.messages) {
-            for (const mensaje of value.value.messages) {
-              await this.procesarMensajeWhatsApp(mensaje as WhatsAppMensaje, value.value.metadata as Record<string, unknown>);
-            }
-          }
-
-          if (value.value?.statuses) {
-            for (const status of value.value.statuses) {
-              await this.procesarEstadoMensaje(status as MetaStatusEvent, 'whatsapp');
-            }
+      const body = req.body;
+      try {
+        // Detectar canal
+        let canal = '';
+        let canal_id = '';
+        let mensaje = {
+          remitente: '',
+          direccion: 'entrante',
+          tipo: '',
+          contenido: '',
+          meta_message_id: '',
+          estado: 'enviado',
+          fecha_hora: new Date(),
+        };
+        // WhatsApp
+        if (body.object === 'whatsapp_business_account') {
+          canal = 'whatsapp';
+          const entry = body.entry?.[0];
+          const changes = entry?.changes?.[0]?.value;
+          const msg = changes?.messages?.[0];
+          if (msg) {
+            canal_id = msg.from;
+            mensaje.remitente = msg.from;
+            mensaje.tipo = msg.type;
+            mensaje.meta_message_id = msg.id || msg['wamid'];
+            if (msg.type === 'text') mensaje.contenido = msg.text.body;
+            if (msg.type === 'image') mensaje.contenido = msg.image?.link;
+            if (msg.type === 'audio') mensaje.contenido = msg.audio?.link;
+            if (msg.type === 'document') mensaje.contenido = msg.document?.link;
           }
         }
+        // Facebook Messenger
+        else if (body.object === 'page') {
+          canal = 'facebook';
+          const entry = body.entry?.[0];
+          const messaging = entry?.messaging?.[0];
+          if (messaging) {
+            canal_id = messaging.sender.id;
+            mensaje.remitente = messaging.sender.id;
+            mensaje.tipo = messaging.message?.text ? 'text' : messaging.message?.attachments?.[0]?.type;
+            mensaje.meta_message_id = messaging.message?.mid;
+            mensaje.contenido = messaging.message?.text || messaging.message?.attachments?.[0]?.payload?.url;
+          }
+        }
+        // Instagram
+        else if (body.object === 'instagram') {
+          canal = 'instagram';
+          const entry = body.entry?.[0];
+          const changes = entry?.changes?.[0]?.value;
+          const msg = changes?.messages?.[0];
+          if (msg) {
+            canal_id = msg.from;
+            mensaje.remitente = msg.from;
+            mensaje.tipo = msg.type;
+            mensaje.meta_message_id = msg.id;
+            if (msg.type === 'text') mensaje.contenido = msg.text.body;
+            if (msg.type === 'image') mensaje.contenido = msg.image?.link;
+            if (msg.type === 'audio') mensaje.contenido = msg.audio?.link;
+            if (msg.type === 'document') mensaje.contenido = msg.document?.link;
+          }
+        }
+        // Normalización y Upsert de conversación
+        if (!canal || !canal_id || !mensaje.meta_message_id) {
+          return res.status(200).send('No message');
+        }
+        // Upsert conversación
+        const db = Database.instance || new Database();
+        const pool = db.getPool();
+        const convRes = await pool.query(
+          `INSERT INTO conversaciones (canal, canal_id, nombre_contacto, ultimo_mensaje, fecha_ultimo_mensaje, mensajes_no_leidos, estado)
+           VALUES ($1, $2, '', $3, $4, 1, 'abierto')
+           ON CONFLICT (canal_id) DO UPDATE SET ultimo_mensaje = $3, fecha_ultimo_mensaje = $4, mensajes_no_leidos = conversaciones.mensajes_no_leidos + 1
+           RETURNING id`,
+          [canal, canal_id, mensaje.contenido, mensaje.fecha_hora]
+        );
+        const conversacion_id = convRes.rows[0].id;
+        // Guardar mensaje
+        await pool.query(
+          `INSERT INTO mensajes (conversacion_id, remitente, direccion, tipo, contenido, meta_message_id, estado, fecha_hora)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (meta_message_id) DO NOTHING`,
+          [conversacion_id, mensaje.remitente, mensaje.direccion, mensaje.tipo, mensaje.contenido, mensaje.meta_message_id, mensaje.estado, mensaje.fecha_hora]
+        );
+        // Emitir evento tiempo real
+        this.io.emit('mensaje_nuevo', { conversacion_id, ...mensaje });
+        return res.status(200).send('OK');
+      } catch (err) {
+        console.error('Error en webhook:', err);
+        return res.status(500).send('Internal error');
       }
-
-      res.status(200).json({ success: true });
-    } catch (error) {
-      console.error('[WHATSAPP WEBHOOK] Error:', error);
-      res.status(500).json({ error: 'Error procesando webhook' });
     }
-  }
+
+    // Verifica la firma de Meta
+    verifySignature(rawBody: Buffer, signature: string): boolean {
+      const appSecret = process.env.META_APP_SECRET;
+      if (!appSecret) return false;
+      const expected = 'sha1=' + crypto.createHmac('sha1', appSecret).update(rawBody).digest('hex');
+      return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+    }
+
 
   /**
    * Recibe webhooks de Facebook Messenger

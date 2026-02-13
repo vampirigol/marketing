@@ -318,6 +318,23 @@ export class CatalogoController {
       zonaHoraria: s.zonaHoraria,
       activo: s.activa,
     }));
+    const ordenSucursales = [
+      'Ciudad Obregón',
+      'Ciudad Juárez',
+      'Loreto Héroes',
+      'Loreto Centro',
+      'Valle de la Trinidad',
+      'Guadalajara',
+      'Clínica Adventista Virtual',
+    ];
+    sucursalesCatalogo.sort((a, b) => {
+      const i = ordenSucursales.indexOf(a.nombre);
+      const j = ordenSucursales.indexOf(b.nombre);
+      if (i === -1 && j === -1) return a.nombre.localeCompare(b.nombre);
+      if (i === -1) return 1;
+      if (j === -1) return -1;
+      return i - j;
+    });
 
     const legacyToName: Record<string, string> = {
       'suc-1': 'Valle de la Trinidad',

@@ -20,10 +20,10 @@ interface InstagramResponse {
 }
 
 export class InstagramService {
-  private readonly apiUrl: string;
-  private readonly pageAccessToken: string;
-  private readonly instagramBusinessAccountId: string;
-  private readonly apiVersion: string = 'v18.0';
+  public readonly apiUrl: string;
+  public readonly pageAccessToken: string;
+  public readonly instagramBusinessAccountId: string;
+  public readonly apiVersion: string = 'v18.0';
 
   constructor() {
     this.apiUrl = process.env.INSTAGRAM_API_URL || 'https://graph.facebook.com';

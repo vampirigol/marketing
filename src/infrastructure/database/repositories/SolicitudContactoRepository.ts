@@ -7,7 +7,8 @@ import { Pool } from 'pg';
 import Database from '../Database';
 import { 
   SolicitudContacto, 
-  EstadoSolicitud 
+  EstadoSolicitud,
+  LeadStatus 
 } from '../../../core/entities/SolicitudContacto';
 
 export interface SolicitudContactoRepository {
@@ -25,6 +26,12 @@ export interface SolicitudContactoRepository {
   obtenerPendientesConversion(): Promise<SolicitudContacto[]>;
   /** Busca una solicitud activa (no resuelta/cancelada, sin cita) por teléfono/whatsapp para vincular desde webhooks. */
   obtenerPendientePorTelefono(telefono: string): Promise<SolicitudContacto | null>;
+  /** Pipeline Kanban: listar leads por columna (lead_status). Opcional filtro por sucursal. */
+  obtenerPorLeadStatus(leadStatus: LeadStatus, sucursalId?: string): Promise<SolicitudContacto[]>;
+  /** Actualiza lead_status y opcionalmente en_lista_recovery. */
+  actualizarLeadStatus(id: string, leadStatus: LeadStatus, enListaRecovery?: boolean): Promise<SolicitudContacto | null>;
+  /** Obtiene IDs de solicitudes vinculadas a las citas pasadas (para job No Asistió). */
+  obtenerIdsPorCitaIds(citaIds: string[]): Promise<{ id: string; cita_id: string }[]>;
   obtenerEstadisticas(sucursalId?: string): Promise<{
     total: number;
     pendientes: number;
@@ -53,10 +60,10 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
         sucursal_id, sucursal_nombre, motivo, motivo_detalle, preferencia_contacto,
         estado, prioridad, agente_asignado_id, agente_asignado_nombre, intentos_contacto,
         ultimo_intento, notas, resolucion, origen, creado_por, fecha_creacion,
-        fecha_asignacion, fecha_resolucion, ultima_actualizacion, crm_status, crm_resultado,
-        no_afiliacion, cita_id
+        fecha_asignacion, fecha_resolucion,         ultima_actualizacion, crm_status, crm_resultado,
+        no_afiliacion, cita_id, lead_status, en_lista_recovery
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31
       ) RETURNING *
     `;
 
@@ -90,6 +97,8 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
       solicitud.crmResultado || null,
       solicitud.noAfiliacion || null,
       solicitud.citaId || null,
+      solicitud.leadStatus || 'LEADS_WHATSAPP',
+      solicitud.enListaRecovery ?? false,
     ];
 
     const result = await this.pool.query(query, values);
@@ -178,6 +187,7 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
         crmResultado: 'crm_resultado',
         citaId: 'cita_id',
         noAfiliacion: 'no_afiliacion',
+        leadStatus: 'lead_status',
       };
       return mapping[key] || key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
     };
@@ -189,6 +199,12 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
         paramIndex++;
       }
     });
+
+    if (datos.citaId !== undefined) {
+      fields.push('lead_status = $' + paramIndex);
+      values.push('AGENDADO');
+      paramIndex++;
+    }
 
     fields.push(`ultima_actualizacion = CURRENT_TIMESTAMP`);
     values.push(id);
@@ -310,7 +326,43 @@ export class SolicitudContactoRepositoryPostgres implements SolicitudContactoRep
       crmResultado: row.crm_resultado || undefined,
       citaId: row.cita_id || undefined,
       noAfiliacion: row.no_afiliacion || undefined,
+      leadStatus: (row.lead_status as LeadStatus) || 'LEADS_WHATSAPP',
+      enListaRecovery: row.en_lista_recovery ?? false,
     };
+  }
+
+  async obtenerPorLeadStatus(leadStatus: LeadStatus, sucursalId?: string): Promise<SolicitudContacto[]> {
+    let query = 'SELECT * FROM solicitudes_contacto WHERE COALESCE(lead_status, \'LEADS_WHATSAPP\') = $1 ORDER BY fecha_creacion DESC';
+    const values: unknown[] = [leadStatus];
+    if (sucursalId) {
+      query = 'SELECT * FROM solicitudes_contacto WHERE COALESCE(lead_status, \'LEADS_WHATSAPP\') = $1 AND sucursal_id = $2 ORDER BY fecha_creacion DESC';
+      values.push(sucursalId);
+    }
+    const result = await this.pool.query(query, values);
+    return result.rows.map((row) => this.mapToEntity(row));
+  }
+
+  async actualizarLeadStatus(id: string, leadStatus: LeadStatus, enListaRecovery?: boolean): Promise<SolicitudContacto | null> {
+    const updates: string[] = ['lead_status = $1', 'ultima_actualizacion = CURRENT_TIMESTAMP'];
+    const values: unknown[] = [leadStatus];
+    if (enListaRecovery !== undefined) {
+      updates.push('en_lista_recovery = $2');
+      values.push(enListaRecovery);
+    }
+    values.push(id);
+    const query = `UPDATE solicitudes_contacto SET ${updates.join(', ')} WHERE id = $${values.length} RETURNING *`;
+    const result = await this.pool.query(query, values);
+    if (result.rows.length === 0) return null;
+    return this.mapToEntity(result.rows[0]);
+  }
+
+  async obtenerIdsPorCitaIds(citaIds: string[]): Promise<{ id: string; cita_id: string }[]> {
+    if (citaIds.length === 0) return [];
+    const result = await this.pool.query(
+      'SELECT id, cita_id FROM solicitudes_contacto WHERE cita_id = ANY($1::uuid[])',
+      [citaIds]
+    );
+    return result.rows.map((r) => ({ id: r.id, cita_id: r.cita_id }));
   }
 }
 
@@ -412,6 +464,28 @@ export class InMemorySolicitudContactoRepository implements SolicitudContactoRep
     );
     activos.sort((a, b) => b.fechaCreacion.getTime() - a.fechaCreacion.getTime());
     return activos[0] ? { ...activos[0] } : null;
+  }
+
+  async obtenerPorLeadStatus(leadStatus: LeadStatus, sucursalId?: string): Promise<SolicitudContacto[]> {
+    let list = Array.from(this.solicitudes.values()).filter(s => (s.leadStatus || 'LEADS_WHATSAPP') === leadStatus);
+    if (sucursalId) list = list.filter(s => s.sucursalId === sucursalId);
+    return list.sort((a, b) => b.fechaCreacion.getTime() - a.fechaCreacion.getTime()).map(s => ({ ...s }));
+  }
+
+  async actualizarLeadStatus(id: string, leadStatus: LeadStatus, enListaRecovery?: boolean): Promise<SolicitudContacto | null> {
+    const s = this.solicitudes.get(id);
+    if (!s) return null;
+    const updated = { ...s, leadStatus, ultimaActualizacion: new Date() };
+    if (enListaRecovery !== undefined) updated.enListaRecovery = enListaRecovery;
+    this.solicitudes.set(id, updated);
+    return { ...updated };
+  }
+
+  async obtenerIdsPorCitaIds(citaIds: string[]): Promise<{ id: string; cita_id: string }[]> {
+    if (citaIds.length === 0) return [];
+    return Array.from(this.solicitudes.values())
+      .filter(s => s.citaId && citaIds.includes(s.citaId))
+      .map(s => ({ id: s.id, cita_id: s.citaId! }));
   }
 
   async obtenerEstadisticas(sucursalId?: string): Promise<{
